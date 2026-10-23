@@ -1,0 +1,177 @@
+import django.db.models.deletion
+from django.conf import settings
+from django.db import migrations, models
+
+class Migration(migrations.Migration):
+    initial = True
+    dependencies = [migrations.swappable_dependency(settings.AUTH_USER_MODEL)]
+    operations = [
+        migrations.CreateModel(
+            name='Category',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('updated_at', models.DateTimeField(auto_now=True)),
+                ('name', models.CharField(max_length=100, unique=True)),
+                ('slug', models.SlugField(max_length=120, unique=True)),
+                ('description', models.CharField(blank=True, max_length=300)),
+                ('display_order', models.PositiveIntegerField(default=0)),
+            ],
+            options={'ordering': ['display_order', 'name']},
+        ),
+        migrations.CreateModel(
+            name='CreatorProfile',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('updated_at', models.DateTimeField(auto_now=True)),
+                ('display_name', models.CharField(default='Your name', max_length=120)),
+                ('headline', models.CharField(default='A home for ideas worth keeping.', max_length=240)),
+                ('biography', models.TextField(blank=True, default='A personal space for work in progress, useful links, thoughtful notes, and the things worth returning to.')),
+                ('avatar_url', models.URLField(blank=True)),
+                ('location', models.CharField(blank=True, max_length=120)),
+                ('social_links', models.JSONField(blank=True, default=dict)),
+            ],
+        ),
+        migrations.CreateModel(
+            name='SiteSettings',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('updated_at', models.DateTimeField(auto_now=True)),
+                ('site_title', models.CharField(default='ALIB — Digital Home', max_length=140)),
+                ('logo_url', models.URLField(blank=True)),
+                ('favicon_url', models.URLField(blank=True)),
+                ('seo_description', models.CharField(blank=True, max_length=300)),
+                ('homepage_sections', models.JSONField(blank=True, default=list)),
+                ('theme_preferences', models.JSONField(blank=True, default=dict)),
+            ],
+        ),
+        migrations.CreateModel(
+            name='Tag',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('updated_at', models.DateTimeField(auto_now=True)),
+                ('name', models.CharField(max_length=70, unique=True)),
+                ('slug', models.SlugField(max_length=80, unique=True)),
+            ],
+        ),
+        migrations.CreateModel(
+            name='ContentItem',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('updated_at', models.DateTimeField(auto_now=True)),
+                ('title', models.CharField(max_length=240)),
+                ('slug', models.SlugField(blank=True, max_length=260, unique=True)),
+                ('summary', models.CharField(blank=True, max_length=500)),
+                ('body', models.TextField(blank=True)),
+                ('content_type', models.CharField(choices=[('article', 'Article'), ('note', 'Note'), ('link', 'Website / Link'), ('project', 'Project'), ('video', 'Video'), ('book', 'Book'), ('resource', 'Resource'), ('file', 'File'), ('gallery', 'Gallery'), ('podcast', 'Podcast')], db_index=True, default='article', max_length=16)),
+                ('source_url', models.URLField(blank=True, max_length=2000)),
+                ('cover_image_url', models.URLField(blank=True, max_length=2000)),
+                ('visibility', models.CharField(choices=[('public', 'Public'), ('unlisted', 'Unlisted'), ('private', 'Private')], db_index=True, default='public', max_length=12)),
+                ('status', models.CharField(choices=[('draft', 'Draft'), ('published', 'Published'), ('scheduled', 'Scheduled'), ('archived', 'Archived')], db_index=True, default='draft', max_length=12)),
+                ('featured', models.BooleanField(db_index=True, default=False)),
+                ('allow_download', models.BooleanField(default=False)),
+                ('published_at', models.DateTimeField(blank=True, db_index=True, null=True)),
+                ('scheduled_for', models.DateTimeField(blank=True, db_index=True, null=True)),
+                ('metadata', models.JSONField(blank=True, default=dict)),
+                ('category', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='content_items', to='content.category')),
+                ('created_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='alib_content', to=settings.AUTH_USER_MODEL)),
+                ('tags', models.ManyToManyField(blank=True, related_name='content_items', to='content.tag')),
+            ],
+            options={
+                'ordering': ['-published_at', '-created_at'],
+                'indexes': [
+                    models.Index(fields=['status', 'visibility', '-published_at'], name='alib_pub_state_idx'),
+                    models.Index(fields=['content_type', 'status'], name='alib_type_state_idx'),
+                ],
+            },
+        ),
+        migrations.CreateModel(
+            name='Collection',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('updated_at', models.DateTimeField(auto_now=True)),
+                ('title', models.CharField(max_length=180)),
+                ('slug', models.SlugField(max_length=200, unique=True)),
+                ('description', models.TextField(blank=True)),
+                ('cover_image_url', models.URLField(blank=True)),
+                ('visibility', models.CharField(choices=[('public', 'Public'), ('unlisted', 'Unlisted'), ('private', 'Private')], default='public', max_length=12)),
+                ('display_order', models.PositiveIntegerField(default=0)),
+            ],
+            options={'ordering': ['display_order', '-updated_at']},
+        ),
+        migrations.CreateModel(
+            name='CollectionItem',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('display_order', models.PositiveIntegerField(default=0)),
+                ('added_at', models.DateTimeField(auto_now_add=True)),
+                ('collection', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='content.collection')),
+                ('item', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='content.contentitem')),
+            ],
+            options={'ordering': ['display_order', '-added_at'], 'constraints': [models.UniqueConstraint(fields=('collection', 'item'), name='unique_collection_item')]},
+        ),
+        migrations.AddField(
+            model_name='collection', name='items',
+            field=models.ManyToManyField(blank=True, related_name='collections', through='content.CollectionItem', to='content.contentitem'),
+        ),
+        migrations.CreateModel(
+            name='MediaAsset',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('updated_at', models.DateTimeField(auto_now=True)),
+                ('title', models.CharField(blank=True, max_length=200)),
+                ('description', models.CharField(blank=True, max_length=500)),
+                ('original_filename', models.CharField(max_length=255)),
+                ('storage_path', models.CharField(max_length=700, unique=True)),
+                ('mime_type', models.CharField(max_length=120)),
+                ('file_size', models.PositiveBigIntegerField(default=0)),
+                ('visibility', models.CharField(choices=[('public', 'Public'), ('unlisted', 'Unlisted'), ('private', 'Private')], db_index=True, default='private', max_length=12)),
+                ('downloadable', models.BooleanField(default=False)),
+                ('uploaded_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to=settings.AUTH_USER_MODEL)),
+            ],
+        ),
+        migrations.CreateModel(
+            name='VisitorSuggestion',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('updated_at', models.DateTimeField(auto_now=True)),
+                ('title', models.CharField(max_length=240)),
+                ('url', models.URLField(max_length=2000)),
+                ('reason', models.TextField(blank=True)),
+                ('status', models.CharField(choices=[('pending', 'Pending'), ('approved', 'Approved'), ('rejected', 'Rejected')], db_index=True, default='pending', max_length=16)),
+                ('reviewed_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to=settings.AUTH_USER_MODEL)),
+            ],
+        ),
+        migrations.CreateModel(
+            name='ContactMessage',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('updated_at', models.DateTimeField(auto_now=True)),
+                ('name', models.CharField(max_length=120)),
+                ('email', models.EmailField(max_length=254)),
+                ('message', models.TextField(max_length=5000)),
+                ('reviewed', models.BooleanField(db_index=True, default=False)),
+            ],
+        ),
+        migrations.CreateModel(
+            name='AuditEvent',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('action', models.CharField(max_length=120)),
+                ('object_type', models.CharField(blank=True, max_length=100)),
+                ('object_id', models.CharField(blank=True, max_length=100)),
+                ('details', models.JSONField(blank=True, default=dict)),
+                ('created_at', models.DateTimeField(auto_now_add=True, db_index=True)),
+                ('actor', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to=settings.AUTH_USER_MODEL)),
+            ],
+            options={'ordering': ['-created_at']},
+        ),
+    ]
