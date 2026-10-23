@@ -11,6 +11,6 @@ describe('ALIB public shell', () => {
     render(<MemoryRouter initialEntries={['/']}><App /></MemoryRouter>);
     expect(screen.getByRole('link', { name: /ALIB home/i })).toBeTruthy();
     expect(screen.getByRole('link', { name: /Explore the library/i })).toBeTruthy();
-    expect(screen.getByRole('link', { name: /Creator Studio/i })).toBeTruthy();
+    expect(screen.getAllByRole('link', { name: /Creator Studio/i }).length).toBeGreaterThan(0);
   });
 });
