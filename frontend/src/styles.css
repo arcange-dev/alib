@@ -843,3 +843,15 @@ kbd { padding: 2px 5px; color: var(--muted); background: var(--surface-soft); bo
 .discover-extra-filters .check-field input { accent-color: var(--accent); }
 .settings-form select[multiple] { min-height: 110px; }
 @media (max-width: 600px) { .audit-filters, .newsletter-admin-controls { align-items: stretch; flex-direction: column; } .audit-filters label, .newsletter-admin-controls label { min-width: 0; } .bulk-moderation-toolbar > span { margin-right: 0; } .subscriber-row { align-items: flex-start; flex-direction: column; } }
+
+
+/* Optional authenticator two-factor setup and secure sign-in */
+.security-panel .settings-form > p { color: var(--muted); font-size: 11px; line-height: 1.65; }
+.security-enabled-state { display: flex; align-items: flex-start; gap: 12px; padding: 16px; color: #166534; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; }
+:root[data-theme='dark'] .security-enabled-state { color: #86efac; background: #12301f; border-color: #245f3b; }
+.security-enabled-state > div { display: flex; flex-direction: column; gap: 5px; }
+.security-enabled-state strong, .security-setup-step strong { font-size: 12px; }
+.security-enabled-state p, .security-setup-step p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.7; }
+.security-setup-step { display: flex; align-items: flex-start; gap: 12px; padding: 14px; background: var(--surface-soft); border: 1px solid var(--border); border-radius: 8px; }
+.security-setup-step > span { display: grid; place-items: center; width: 29px; height: 29px; flex-shrink: 0; color: var(--accent-ink); background: var(--accent); border-radius: 50%; font-size: 11px; font-weight: 700; }
+.security-setup-step > div { display: flex; flex-direction: column; gap: 5px; }
