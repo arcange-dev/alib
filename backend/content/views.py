@@ -37,6 +37,31 @@ from .two_factor import decrypt_secret, encrypt_secret, generate_secret, provisi
 
 
 
+
+
+def _file_signature_matches(mime_type, header):
+    """Reject files whose bytes do not match their declared allow-listed MIME type."""
+    if mime_type == 'image/jpeg':
+        return header.startswith(b'\xff\xd8\xff')
+    if mime_type == 'image/png':
+        return header.startswith(b'\x89PNG\r\n\x1a\n')
+    if mime_type == 'image/webp':
+        return header.startswith(b'RIFF') and header[8:12] == b'WEBP'
+    if mime_type == 'image/gif':
+        return header.startswith((b'GIF87a', b'GIF89a'))
+    if mime_type == 'application/pdf':
+        return header.startswith(b'%PDF-')
+    if mime_type == 'audio/mpeg':
+        return header.startswith(b'ID3') or (
+            len(header) >= 2 and header[0] == 0xff and (header[1] & 0xe0) == 0xe0
+        )
+    if mime_type in {'audio/mp4', 'video/mp4'}:
+        return len(header) >= 12 and header[4:8] == b'ftyp'
+    if mime_type == 'video/webm':
+        return header.startswith(b'\x1a\x45\xdf\xa3')
+    return False
+
+
 def _revision_snapshot(item):
     return {
         'title': item.title, 'slug': item.slug, 'summary': item.summary,
@@ -463,6 +488,10 @@ class MediaUploadAPIView(APIView):
         mime_type = (getattr(uploaded, 'content_type', '') or '').lower()
         if mime_type not in allowed:
             raise ValidationError({'file': 'Allowed formats are JPG, PNG, WebP, GIF, PDF, MP3, MP4, and WebM.'})
+        header = uploaded.read(32)
+        uploaded.seek(0)
+        if not _file_signature_matches(mime_type, header):
+            raise ValidationError({'file': 'The uploaded file bytes do not match the selected file type. Choose a valid file in an allowed format.'})
         safe_name = re.sub(r'[^a-zA-Z0-9._-]+', '-', PurePath(uploaded.name).name).strip('.-')[:120] or 'upload.bin'
         object_key = f'{uuid4().hex}/{safe_name}'
         upload_object(object_key, mime_type, uploaded.read())
@@ -774,21 +803,45 @@ class AdminAnalyticsAPIView(APIView):
 
 class ContactInboxAPIView(APIView):
     permission_classes = [IsALIBModerator]
+
     def get(self, request):
-        queryset = ContactMessage.objects.order_by('reviewed', '-created_at')
+        queryset = ContactMessage.objects.order_by('archived', 'reviewed', '-created_at')
+        archived = request.query_params.get('archived', 'false')
+        if archived in ('true', 'false'):
+            queryset = queryset.filter(archived=(archived == 'true'))
         reviewed = request.query_params.get('reviewed')
         if reviewed in ('true', 'false'):
             queryset = queryset.filter(reviewed=(reviewed == 'true'))
-        return Response([{'id': x.pk, 'name': x.name, 'email': x.email, 'message': x.message, 'reviewed': x.reviewed, 'created_at': x.created_at} for x in queryset[:200]])
+        return Response([
+            {'id': x.pk, 'name': x.name, 'email': x.email, 'message': x.message,
+             'reviewed': x.reviewed, 'archived': x.archived, 'created_at': x.created_at}
+            for x in queryset[:200]
+        ])
+
     def patch(self, request, message_id=None):
         message_id = message_id or request.data.get('id')
         message = ContactMessage.objects.filter(pk=message_id).first()
         if message is None:
             return Response({'detail': 'Message not found.'}, status=status.HTTP_404_NOT_FOUND)
+        changed = []
         if 'reviewed' in request.data:
             message.reviewed = bool(request.data['reviewed'])
-            message.save(update_fields=['reviewed'])
-        return Response({'id': message.pk, 'reviewed': message.reviewed})
+            changed.append('reviewed')
+        if 'archived' in request.data:
+            message.archived = bool(request.data['archived'])
+            changed.append('archived')
+        if changed:
+            message.save(update_fields=changed)
+        return Response({'id': message.pk, 'reviewed': message.reviewed, 'archived': message.archived})
+
+    def delete(self, request, message_id=None):
+        if not message_id:
+            raise ValidationError({'id': 'Specify the contact message to delete.'})
+        message = ContactMessage.objects.filter(pk=message_id).first()
+        if message is None:
+            return Response({'detail': 'Message not found.'}, status=status.HTTP_404_NOT_FOUND)
+        message.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class ContentCommentViewSet(viewsets.ModelViewSet):
