@@ -1,0 +1,30 @@
+name: Publish scheduled ALIB content
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish-scheduled:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Trigger protected publishing job
+        env:
+          SCHEDULER_URL: ${{ secrets.ALIB_SCHEDULER_URL }}
+          SCHEDULER_TOKEN: ${{ secrets.ALIB_SCHEDULER_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$SCHEDULER_URL" || -z "$SCHEDULER_TOKEN" ]]; then
+            echo "Scheduler skipped: add ALIB_SCHEDULER_URL and ALIB_SCHEDULER_TOKEN to repository Actions secrets."
+            exit 0
+          fi
+          curl --fail --silent --show-error --max-time 110 \
+            --request POST "$SCHEDULER_URL" \
+            --header "X-ALIB-Scheduler-Token: $SCHEDULER_TOKEN" \
+            --header "Accept: application/json"
