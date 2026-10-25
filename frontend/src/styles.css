@@ -945,3 +945,16 @@ kbd { padding: 2px 5px; color: var(--muted); background: var(--surface-soft); bo
   .admin-page.admin-layout > .admin-main { width: 100%; margin-left: 0; }
 }
 
+
+/* Admin brand/copy configuration */
+.admin-hidden-file-input { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.settings-help-text { color: var(--muted); font-size: 11px; line-height: 1.7; }
+.settings-help-text code { padding: 2px 4px; border: 1px solid var(--border); background: var(--surface-soft); border-radius: 3px; }
+.site-copy-editor { display: grid; gap: 14px; padding: 22px; margin: 22px 0; border: 1px solid var(--border); background: var(--surface-soft); }
+.site-copy-editor h3 { margin: 5px 0 4px; color: var(--text-strong); font-family: var(--serif); font-size: 24px; font-weight: 500; }
+.site-copy-editor p { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.7; }
+.site-copy-editor textarea { width: 100%; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; line-height: 1.6; }
+@media (max-width: 680px) {
+  .admin-topbar-actions { flex-direction: row; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+  .admin-topbar-actions .admin-live-status { display: none; }
+}
