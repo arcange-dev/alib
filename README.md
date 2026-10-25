@@ -81,14 +81,15 @@ python manage.py test
 
 - **Supabase PostgreSQL:** set `DATABASE_URL` to the complete session-pooler connection URL. Never commit it.
 - **Supabase Storage:** uploads require a private `alib-media` bucket plus server-side `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and optionally `SUPABASE_STORAGE_BUCKET` / `MAX_UPLOAD_BYTES`.
-- **Email delivery:** team invitations, staff password reset, newsletter confirmation/unsubscribe emails, and optional contact notifications require working SMTP/provider settings. Without these credentials the application returns a clear delivery error; it does not claim an email was sent.
+- **Email delivery:** team invitations, staff password reset, newsletter confirmation/unsubscribe emails, and optional contact notifications require working SMTP/provider settings.
+- **Staff two-factor authentication:** staff can enable TOTP in Creator Studio → Account security. Store the authenticator in a trusted app; setup secrets are encrypted at rest. If a teammate loses their device, the owner can reset that teammate's 2FA from Team access; owner self-recovery requires the documented break-glass recovery process. Without these credentials the application returns a clear delivery error; it does not claim an email was sent.
 - **Scheduled publishing:** configure `ALIB_SCHEDULER_TOKEN` in Render and matching GitHub Actions secrets `ALIB_SCHEDULER_URL` and `ALIB_SCHEDULER_TOKEN`. See [deployment instructions](docs/deployment.md). GitHub's scheduler is best-effort, not a real-time guarantee.
 - **Initial owner account:** use the temporary `ALIB_BOOTSTRAP_ADMIN_*` environment variables, then remove them after the account is created.
 - **Operations:** verify Supabase backups/restores and review the [production runbook](docs/production-runbook.md).
 
 ## Remaining limitations and release gates
 
-The current editor is a Markdown-based block/formatting workflow, not a full visual WYSIWYG editor. Two-factor authentication, a native reader-account system with cross-device synced bookmarks, automatic analytics retention/deletion, automated provider-specific social metadata ingestion, and full browser end-to-end tests are not included yet. Newsletter/contact/team email features must be tested with the chosen provider before public launch. The feature roadmap is a delivery checklist, not a claim that every conceivable production control is complete.
+The current editor is a Markdown-based block/formatting workflow, not a full visual WYSIWYG editor. Reader bookmarks currently remain in local browser storage rather than syncing across signed-in reader accounts. Automated analytics retention/deletion, provider-specific social metadata ingestion, and full browser end-to-end tests remain release follow-up work. Staff authenticator-app two-factor authentication is implemented, but should be tested with a recovery plan before requiring it for every account. Newsletter/contact/team email features must be tested with the chosen provider before public launch. The feature roadmap is a delivery checklist, not a claim that every conceivable production control is complete.
 
 No fake analytics or invented personal profile details are seeded.
 
