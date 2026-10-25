@@ -155,7 +155,26 @@ function NewsletterSignup() {
 function useHome() {
   const [data, setData] = useState<HomePayload | null>(null);
   const [error, setError] = useState('');
-  useEffect(() => { api.home().then(setData).catch(e => setError(e instanceof Error ? e.message : 'The content service is unavailable.')); }, []);
+  useEffect(() => {
+    let cancelled = false;
+    const HOME_RETRIES = 3;
+    const load = async (attempt: number): Promise<void> => {
+      try {
+        const payload = await api.home();
+        if (!cancelled) { setData(payload); setError(''); }
+      } catch (e) {
+        // The hosting service can drop the first request while the instance
+        // wakes up; retry briefly before showing the empty archive state.
+        if (!cancelled && attempt < HOME_RETRIES) {
+          window.setTimeout(() => void load(attempt + 1), 2500 * (attempt + 1));
+          return;
+        }
+        if (!cancelled) setError(e instanceof Error ? e.message : 'The content service is unavailable.');
+      }
+    };
+    void load(0);
+    return () => { cancelled = true; };
+  }, []);
   return { data, error };
 }
 
