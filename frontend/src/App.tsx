@@ -2,7 +2,7 @@ import { Fragment, useDeferredValue, useEffect, useRef, useState, type FormEvent
 import { Link, NavLink, Route, Routes, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowDown, ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, Bookmark, Check, ChevronDown, CircleHelp, Clock3, Command,
-  Compass, ExternalLink, FileText, Filter, FolderOpen, Globe2, Heart, History, Inbox, Layers3, Link2, LockKeyhole,
+  Compass, ExternalLink, FileText, Filter, FolderOpen, Globe2, Heart, History, Inbox, Layers3, Link2, LockKeyhole, ChevronLeft, ChevronRight,
   LogOut, Mail, Menu, MessageCircle, Moon, PenLine, Plus, Search, Share2, ShieldCheck, Sparkles, Sun, ThumbsUp, Trash2, Upload, Video, X, BarChart3, Settings2, Users, UserRound, ClipboardList, AtSign,
 } from 'lucide-react';
 import { api, type AdminStats, type AdminUser, type AnalyticsSummary, type AuditEventItem, type ContactInboxItem, type ContentComment, type ContentRevision, type NewsletterSubscriberItem, type SiteSettings, type TeamMember, type TeamRole, type TwoFactorStatus } from './api';
@@ -625,7 +625,9 @@ function MediaThumbnail({ asset }: { asset: MediaAsset }) {
 }
 
 function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => void }) {
-  const [tab, setTab] = useState<'overview' | 'content' | 'editor' | 'media' | 'settings' | 'profile' | 'collections' | 'inbox' | 'analytics' | 'moderation' | 'comments' | 'team' | 'audit' | 'newsletter' | 'security'>('overview'); const [stats, setStats] = useState<AdminStats | null>(null); const [items, setItems] = useState<ContentItem[]>([]); const [categories, setCategories] = useState<Category[]>([]); const [tags, setTags] = useState<Tag[]>([]); const [media, setMedia] = useState<MediaAsset[]>([]); const [mediaAltText, setMediaAltText] = useState<Record<number, string>>({}); const [uploadProgress, setUploadProgress] = useState<number | null>(null); const [busy, setBusy] = useState(false); const [message, setMessage] = useState(''); const [editId, setEditId] = useState<number | undefined>();
+  const [tab, setTab] = useState<'overview' | 'content' | 'editor' | 'media' | 'settings' | 'profile' | 'collections' | 'inbox' | 'analytics' | 'moderation' | 'comments' | 'team' | 'audit' | 'newsletter' | 'security'>('overview');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('alib-studio-sidebar-collapsed') === 'true');
+  const [stats, setStats] = useState<AdminStats | null>(null); const [items, setItems] = useState<ContentItem[]>([]); const [categories, setCategories] = useState<Category[]>([]); const [tags, setTags] = useState<Tag[]>([]); const [media, setMedia] = useState<MediaAsset[]>([]); const [mediaAltText, setMediaAltText] = useState<Record<number, string>>({}); const [uploadProgress, setUploadProgress] = useState<number | null>(null); const [busy, setBusy] = useState(false); const [message, setMessage] = useState(''); const [editId, setEditId] = useState<number | undefined>();
   const emptyForm = { title: '', slug: '', summary: '', body: '', content_type: 'article' as ContentType, source_url: '', cover_image_url: '', status: 'draft', visibility: 'public', featured: false, allow_download: false, scheduled_for: '', category_id: '', tag_ids: [] as number[] };
   const [form, setForm] = useState(emptyForm);
   const [hasUnsavedEdits, setHasUnsavedEdits] = useState(false);
@@ -634,6 +636,9 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
   const canModerate = role === 'administrator' || role === 'moderator';
   const isAdmin = role === 'administrator';
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    try { localStorage.setItem('alib-studio-sidebar-collapsed', sidebarCollapsed ? 'true' : 'false'); } catch { /* The layout still works when storage is unavailable. */ }
+  }, [sidebarCollapsed]);
   useEffect(() => {
     try {
       const saved = localStorage.getItem('alib-editor-draft');
@@ -687,23 +692,23 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
   }
   async function removeItem(item: ContentItem) { if (!window.confirm(`Delete “${item.title}”? This cannot be undone.`)) return; try { await api.deleteContent(item.id); setMessage('Content deleted.'); await reload(); } catch (e) { setMessage(e instanceof Error ? e.message : 'Could not delete content.'); } }
   function setField<K extends keyof typeof emptyForm>(key: K, value: (typeof emptyForm)[K]) { setHasUnsavedEdits(true); setForm(prev => ({ ...prev, [key]: value })); }
-  return <div className="admin-page"><aside className="admin-sidebar"><Link to="/" className="brand"><span className="brand-mark">A<span>.</span></span><span className="brand-word">ALIB</span></Link><div className="studio-caption"><span className="status-dot" /> CREATOR STUDIO</div><div className="admin-workspace-label">WORKSPACE</div><nav className="admin-menu" aria-label="Creator Studio navigation">
-      <button className={tab === 'overview' ? 'selected' : ''} onClick={() => setTab('overview')}><Compass size={17} /> Overview</button>
-      <button className={tab === 'security' ? 'selected' : ''} onClick={() => setTab('security')}><ShieldCheck size={17} /> Account security</button>
-      {canManage && <button className={tab === 'content' ? 'selected' : ''} onClick={() => setTab('content')}><FileText size={17} /> All content <span className="nav-count">{items.length}</span></button>}
-      {canManage && <button className={tab === 'editor' ? 'selected' : ''} onClick={newItem}><Plus size={17} /> New content</button>}
-      {canManage && <button className={tab === 'media' ? 'selected' : ''} onClick={() => { setTab('media'); void loadMedia(); }}><FolderOpen size={17} /> Media library</button>}
-      {canManage && <button className={tab === 'collections' ? 'selected' : ''} onClick={() => setTab('collections')}><Layers3 size={17} /> Collections</button>}
-      {canManage && <button className={tab === 'profile' ? 'selected' : ''} onClick={() => setTab('profile')}><UserRound size={17} /> Creator profile</button>}
-      {isAdmin && <button className={tab === 'settings' ? 'selected' : ''} onClick={() => setTab('settings')}><Settings2 size={17} /> Site settings</button>}
-      {canModerate && <button className={tab === 'inbox' ? 'selected' : ''} onClick={() => setTab('inbox')}><Inbox size={17} /> Contact inbox</button>}
-      <button className={tab === 'analytics' ? 'selected' : ''} onClick={() => setTab('analytics')}><BarChart3 size={17} /> Analytics</button>
-      {canModerate && <button className={tab === 'moderation' ? 'selected' : ''} onClick={() => setTab('moderation')}><ShieldCheck size={17} /> Suggestions</button>}
-      {canModerate && <button className={tab === 'comments' ? 'selected' : ''} onClick={() => setTab('comments')}><MessageCircle size={17} /> Comments</button>}
-      {isAdmin && <button className={tab === 'team' ? 'selected' : ''} onClick={() => setTab('team')}><Users size={17} /> Team access</button>}
-      {isAdmin && <button className={tab === 'audit' ? 'selected' : ''} onClick={() => setTab('audit')}><ClipboardList size={17} /> Audit history</button>}
-      {isAdmin && <button className={tab === 'newsletter' ? 'selected' : ''} onClick={() => setTab('newsletter')}><AtSign size={17} /> Newsletter</button>}
-      <Link to="/" className="admin-menu-link"><Globe2 size={17} /> View public site <ArrowUpRight size={14} /></Link>
+  return <div className={`admin-page ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}><aside className={`admin-sidebar ${sidebarCollapsed ? 'is-collapsed' : ''}`}><div className="admin-sidebar-header"><Link to="/" className="brand" title="ALIB home"><span className="brand-mark">A<span>.</span></span><span className="brand-word">ALIB</span></Link><button type="button" className="icon-button sidebar-toggle" onClick={() => setSidebarCollapsed(value => !value)} aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}>{sidebarCollapsed ? <ChevronRight size={17} /> : <ChevronLeft size={17} />}</button></div><div className="studio-caption"><span className="status-dot" /> CREATOR STUDIO</div><div className="admin-workspace-label">WORKSPACE</div><nav className="admin-menu" aria-label="Creator Studio navigation">
+      <button title="Overview" className={tab === 'overview' ? 'selected' : ''} onClick={() => setTab('overview')}><Compass size={17} /> Overview</button>
+      <button title="Account security" className={tab === 'security' ? 'selected' : ''} onClick={() => setTab('security')}><ShieldCheck size={17} /> Account security</button>
+      {canManage && <button title="All content" className={tab === 'content' ? 'selected' : ''} onClick={() => setTab('content')}><FileText size={17} /> All content <span className="nav-count">{items.length}</span></button>}
+      {canManage && <button title="New content" className={tab === 'editor' ? 'selected' : ''} onClick={newItem}><Plus size={17} /> New content</button>}
+      {canManage && <button title="Media library" className={tab === 'media' ? 'selected' : ''} onClick={() => { setTab('media'); void loadMedia(); }}><FolderOpen size={17} /> Media library</button>}
+      {canManage && <button title="Collections" className={tab === 'collections' ? 'selected' : ''} onClick={() => setTab('collections')}><Layers3 size={17} /> Collections</button>}
+      {canManage && <button title="Creator profile" className={tab === 'profile' ? 'selected' : ''} onClick={() => setTab('profile')}><UserRound size={17} /> Creator profile</button>}
+      {isAdmin && <button title="Site settings" className={tab === 'settings' ? 'selected' : ''} onClick={() => setTab('settings')}><Settings2 size={17} /> Site settings</button>}
+      {canModerate && <button title="Contact inbox" className={tab === 'inbox' ? 'selected' : ''} onClick={() => setTab('inbox')}><Inbox size={17} /> Contact inbox</button>}
+      <button title="Analytics" className={tab === 'analytics' ? 'selected' : ''} onClick={() => setTab('analytics')}><BarChart3 size={17} /> Analytics</button>
+      {canModerate && <button title="Suggestions" className={tab === 'moderation' ? 'selected' : ''} onClick={() => setTab('moderation')}><ShieldCheck size={17} /> Suggestions</button>}
+      {canModerate && <button title="Comments" className={tab === 'comments' ? 'selected' : ''} onClick={() => setTab('comments')}><MessageCircle size={17} /> Comments</button>}
+      {isAdmin && <button title="Team access" className={tab === 'team' ? 'selected' : ''} onClick={() => setTab('team')}><Users size={17} /> Team access</button>}
+      {isAdmin && <button title="Audit history" className={tab === 'audit' ? 'selected' : ''} onClick={() => setTab('audit')}><ClipboardList size={17} /> Audit history</button>}
+      {isAdmin && <button title="Newsletter" className={tab === 'newsletter' ? 'selected' : ''} onClick={() => setTab('newsletter')}><AtSign size={17} /> Newsletter</button>}
+      <Link to="/" title="View public site" className="admin-menu-link"><Globe2 size={17} /> View public site <ArrowUpRight size={14} /></Link>
     </nav><div className="admin-sidebar-bottom"><div className="admin-avatar">{user.username.slice(0, 1).toUpperCase()}</div><div className="admin-user-meta"><strong>{user.username}</strong><span>Administrator</span></div><button className="icon-button" onClick={onSignOut} aria-label="Sign out"><LogOut size={17} /></button></div></aside>
     <div className="admin-main"><header className="admin-topbar"><div><span className="section-kicker">ALIB / WORKSPACE</span><span className="admin-breadcrumb">{({ overview: 'Overview', security: 'Account security', content: 'All content', editor: editId ? 'Edit content' : 'New content', media: 'Media library', settings: 'Site settings', profile: 'Creator profile', collections: 'Collections', inbox: 'Contact inbox', analytics: 'Analytics', moderation: 'Suggestions', comments: 'Comments', team: 'Team access', audit: 'Audit history', newsletter: 'Newsletter' } as Record<string, string>)[tab]}</span></div><div className="admin-topbar-actions"><span className="admin-live-status"><span className="status-dot" /> Connected as {user.username}</span>{canManage && <button className="button button-primary button-small" onClick={newItem}><Plus size={15} /> Create content</button>}</div></header>
       <div className="admin-content-area">{message && <div className={message.toLowerCase().includes('could not') || message.toLowerCase().includes('unable') ? 'error-message' : 'success-message'} role="status">{message}<button onClick={() => setMessage('')} aria-label="Dismiss message"><X size={15} /></button></div>}
