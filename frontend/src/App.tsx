@@ -76,10 +76,13 @@ function App() {
 
 function SiteHeader({ dark, setDark, mobileNav, setMobileNav }: { dark: boolean; setDark: (v: boolean) => void; mobileNav: boolean; setMobileNav: (v: boolean) => void }) {
   const location = useLocation();
+  const [siteTitle, setSiteTitle] = useState('ALIB');
+  const [logoUrl, setLogoUrl] = useState('');
   useEffect(() => setMobileNav(false), [location.pathname, setMobileNav]);
+  useEffect(() => { api.settings().then(settings => { setSiteTitle(settings.site_title || 'ALIB'); setLogoUrl(settings.logo_url || ''); }).catch(() => {}); }, []);
   return <header className="site-header">
     <div className="header-inner">
-      <Link to="/" className="brand" aria-label="ALIB home"><span className="brand-mark">A<span>.</span></span><span className="brand-word">ALIB</span></Link>
+      <Link to="/" className="brand" aria-label={`${siteTitle} home`}>{logoUrl ? <img className="brand-logo" src={logoUrl} alt="" /> : <span className="brand-mark">A<span>.</span></span>}<span className="brand-word">ALIB</span></Link>
       <nav className={`primary-nav ${mobileNav ? 'is-open' : ''}`} aria-label="Main navigation">
         {navItems.map(({ to, label }) => <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>{label}</NavLink>)}
       </nav>
