@@ -74,5 +74,6 @@ jobs:
         run: |
           cd backend
           python manage.py collectstatic --noinput
+          python manage.py migrate --noinput
           python manage.py check
           python manage.py shell -c "from django.test import Client; c=Client(HTTP_HOST='localhost'); page=c.get('/discover'); assert page.status_code == 200, page.status_code; assert b'id=\"root\"' in b''.join(page.streaming_content); api=c.get('/api/v1/content/'); assert api.status_code == 200, api.status_code; print('Render SPA route and public API smoke tests passed.')"
