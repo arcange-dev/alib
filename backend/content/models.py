@@ -142,6 +142,7 @@ class ContactMessage(TimestampedModel):
     email = models.EmailField()
     message = models.TextField(max_length=5000)
     reviewed = models.BooleanField(default=False, db_index=True)
+    archived = models.BooleanField(default=False, db_index=True)
     def __str__(self): return f'{self.name} — {self.created_at:%Y-%m-%d}'
 
 class ContentRevision(models.Model):
