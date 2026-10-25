@@ -494,6 +494,12 @@ function ContentBody({ body }: { body: string }) {
   return <div className="content-markdown">{blocks.map((block, index) => {
     const trimmed = block.trim();
     const heading = trimmed.match(/^(#{1,3})\s+(.+)$/);
+    if (trimmed.startsWith('```') && trimmed.endsWith('```') && lines.length >= 2) {
+      const code = lines.slice(1, -1).join('\n');
+      const language = lines[0].slice(3).trim();
+      return <pre className="content-code-block" key={index}><code data-language={language || 'text'}>{code}</code></pre>;
+    }
+    if (trimmed === '---' || trimmed === '***') return <hr key={index} />;
     if (heading) {
       const content = renderInlineMarkdown(heading[2]);
       if (heading[1].length === 1) return <h2 key={index}>{content}</h2>;
@@ -681,7 +687,7 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
       <button type="button" onClick={() => insertMarkup('*', '*')} aria-label="Italic selected text"><em>I</em></button>
       <button type="button" onClick={() => insertMarkup('- ')} aria-label="Bullet list">• List</button>
       <button type="button" onClick={() => insertMarkup('> ')} aria-label="Quote">Quote</button>
-      <button type="button" onClick={() => insertMarkup('[', '](https://example.com)')} aria-label="Link">Link</button>
+      <button type="button" onClick={() => insertMarkup('[', '](https://example.com)')} aria-label="Link">Link</button><button type="button" onClick={() => insertMarkup('```text\n', '\n```')} aria-label="Code block">Code</button><button type="button" onClick={() => insertMarkup('![Alt text](', ')')} aria-label="Image with alt text">Image</button><button type="button" onClick={() => insertMarkup('\n---\n')} aria-label="Horizontal divider">Divider</button>
     </div>
     <textarea ref={bodyRef} rows={9} value={form.body} onChange={e => setField('body', e.target.value)} placeholder="Write content in Markdown: ## headings, **bold**, bullet lists, > quotes, and [links](https://…). Blank lines start new paragraphs." />
   </label>
