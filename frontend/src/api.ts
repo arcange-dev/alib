@@ -6,13 +6,28 @@ const API_ORIGIN = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
 const API_ROOT = API_ORIGIN + '/api/v1';
 let csrfToken = '';
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+// Django rotates the CSRF token when the auth session changes (for example after a
+// login in another tab), so a token cached at login time can go stale. Prefer the
+// live csrftoken cookie set on this origin, falling back to the cached value.
+function readCsrfCookie(): string {
+  if (typeof document === 'undefined') return '';
+  const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : '';
+}
+
+async function request<T>(path: string, init: RequestInit = {}, csrfRetry = false): Promise<T> {
   const headers = new Headers(init.headers || {});
   if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
-  if (csrfToken && !['GET', 'HEAD', 'OPTIONS'].includes((init.method || 'GET').toUpperCase())) headers.set('X-CSRFToken', csrfToken);
+  const token = csrfToken || readCsrfCookie();
+  if (token && !['GET', 'HEAD', 'OPTIONS'].includes((init.method || 'GET').toUpperCase())) headers.set('X-CSRFToken', token);
   const response = await fetch(`${API_ROOT}${path}`, { ...init, headers, credentials: 'include' });
   const text = await response.text();
   const payload = text ? safeJson(text) : null;
+  if (response.status === 403 && !csrfRetry && typeof payload?.detail === 'string' && /CSRF/i.test(payload.detail)) {
+    // The token was stale; refresh it from the API and retry the request once.
+    await api.csrf();
+    return request<T>(path, init, true);
+  }
   if (!response.ok) {
     const detail = payload?.detail || payload?.error || (typeof payload === 'string' ? payload : '') || `Request failed (${response.status})`;
     throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
@@ -69,7 +84,9 @@ export const api = {
   },
   login: async (username: string, password: string): Promise<StaffLoginResponse> => {
     await api.csrf();
-    return request<StaffLoginResponse>('/auth/login/', { method: 'POST', body: JSON.stringify({ username, password }) });
+    const result = await request<StaffLoginResponse>('/auth/login/', { method: 'POST', body: JSON.stringify({ username, password }) });
+    await api.csrf(); // Django rotates the CSRF token on login; refresh the cached value.
+    return result;
   },
   verifyTwoFactorLogin: async (challenge: string, code: string) => {
     await api.csrf();
@@ -91,12 +108,12 @@ export const api = {
   media: () => request<PageResult<MediaAsset>>('/admin/media/'),
   updateMedia: (id: number, payload: { title?: string; description?: string; alt_text?: string; visibility?: string; downloadable?: boolean }) => request<MediaAsset>(`/admin/media/${id}/`, { method: 'PATCH', body: JSON.stringify(payload) }),
   uploadMedia: async (form: FormData, onProgress?: (progress: number) => void): Promise<MediaAsset> => {
-    if (!csrfToken) await api.csrf();
+    if (!csrfToken && !readCsrfCookie()) await api.csrf();
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', `${API_ROOT}/admin/media/upload/`);
       xhr.withCredentials = true;
-      xhr.setRequestHeader('X-CSRFToken', csrfToken);
+      xhr.setRequestHeader('X-CSRFToken', csrfToken || readCsrfCookie());
       xhr.setRequestHeader('Accept', 'application/json');
       xhr.upload.onprogress = event => {
         if (event.lengthComputable && onProgress) onProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)));
