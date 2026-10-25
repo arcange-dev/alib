@@ -1,7 +1,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, NavLink, Route, Routes, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import {
-  ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, Bookmark, Check, ChevronDown, CircleHelp, Clock3, Command,
+  ArrowDown, ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, Bookmark, Check, ChevronDown, CircleHelp, Clock3, Command,
   Compass, ExternalLink, FileText, Filter, FolderOpen, Globe2, Heart, History, Inbox, Layers3, Link2, LockKeyhole,
   LogOut, Mail, Menu, MessageCircle, Moon, PenLine, Plus, Search, Share2, ShieldCheck, Sparkles, Sun, ThumbsUp, Trash2, Upload, Video, X, BarChart3, Settings2,
 } from 'lucide-react';
@@ -215,74 +215,71 @@ function ContentCard({ item, index }: { item: ContentItem; index: number }) {
 
 function DefaultCover({ type, title }: { type: ContentType; title: string }) {
   const Icon = type === 'article' || type === 'note' ? FileText : type === 'video' || type === 'podcast' ? Video : type === 'link' ? Link2 : type === 'book' ? BookOpen : type === 'project' ? Layers3 : FolderOpen;
-  return <div className={`default-cover cover-${type}`}><div className="cover-topline"><span>ALIB / INDEX</span><span>{String(title.length).padStart(2, '0')}</span></div><Icon size={33} strokeWidth={1.3} /><span className="cover-title">{title}</span><span className="cover-bottomline">ARCHIVE ENTRY</span></div>;
-}
-
-function DiscoverPage() {
+  return <div className={`default-cover cover-${type}`}><div className="cover-topline"><span>ALIB / INDEX</span><span>{String(title.length).padStart(2, '0')}</span></div><Icon size={33} strokeWidth={1.3} /><span className="cover-title">{title}</span><span className="cover-bottomline">ARCHIVE ENTRY</span>function DiscoverPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [allItems, setAllItems] = useState<ContentItem[]>([]);
+  const [items, setItems] = useState<ContentItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [nextUrl, setNextUrl] = useState<string | null>(null);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
   const search = searchParams.get('q') || '';
   const activeType = searchParams.get('type') || 'all';
   const activeCategory = searchParams.get('category') || 'all';
+  const sort = searchParams.get('sort') || 'newest';
   const deferredSearch = useDeferredValue(search);
-  useEffect(() => { Promise.all([api.content({ page_size: '100' }), api.categories()]).then(([items, cats]) => { setAllItems(items.results); setCategories(cats.results); }).catch(e => setError(e instanceof Error ? e.message : 'Unable to load content.')).finally(() => setLoading(false)); }, []);
-  const filtered = useMemo(() => allItems.filter(item => {
-    const term = deferredSearch.trim().toLowerCase();
-    const matchesSearch = !term || [item.title, item.summary, item.body, item.source_url, ...(item.tags || []).map(t => t.name)].some(value => value?.toLowerCase().includes(term));
-    return matchesSearch && (activeType === 'all' || item.content_type === activeType) && (activeCategory === 'all' || String(item.category?.id) === activeCategory);
-  }), [allItems, deferredSearch, activeType, activeCategory]);
-  const updateParam = (key: string, value: string) => { const next = new URLSearchParams(searchParams); if (!value || value === 'all') next.delete(key); else next.set(key, value); setSearchParams(next); };
-  const types = ['all', 'article', 'note', 'link', 'project', 'video', 'book', 'resource', 'file'];
+  useEffect(() => { api.categories().then(result => setCategories(result.results)).catch(() => setCategories([])); }, []);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true); setError(''); setItems([]); setNextUrl(null);
+    const params: Record<string, string> = { page_size: '24', ordering: sort === 'oldest' ? 'published_at' : sort === 'title' ? 'title' : '-published_at' };
+    if (deferredSearch.trim()) params.search = deferredSearch.trim();
+    if (activeType !== 'all') params.content_type = activeType;
+    if (activeCategory !== 'all') params.category = activeCategory;
+    api.content(params).then(result => {
+      if (cancelled) return;
+      setItems(result.results); setTotal(result.count); setNextUrl(result.next);
+    }).catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : 'Unable to search the archive.'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    if (deferredSearch.trim()) void api.analytics('search', `/discover?q=${encodeURIComponent(deferredSearch.trim())}`).catch(() => {});
+    return () => { cancelled = true; };
+  }, [deferredSearch, activeType, activeCategory, sort]);
+  const updateParam = (key: string, value: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (!value || value === 'all' || (key === 'sort' && value === 'newest')) next.delete(key); else next.set(key, value);
+    setSearchParams(next);
+  };
+  async function loadMore() {
+    if (!nextUrl || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const url = new URL(nextUrl, window.location.origin);
+      const params = Object.fromEntries(url.searchParams.entries());
+      const page = await api.content(params);
+      setItems(current => [...current, ...page.results]);
+      setNextUrl(page.next);
+    } catch (e) { setError(e instanceof Error ? e.message : 'More results could not load.'); }
+    finally { setLoadingMore(false); }
+  }
+  const types: Array<ContentType | 'all'> = ['all', 'article', 'note', 'link', 'project', 'video', 'book', 'resource', 'file', 'gallery', 'podcast'];
   return <div className="page-wrap section-wrap page-enter">
     <div className="page-hero"><div className="eyebrow">DISCOVERY / 01 <span className="eyebrow-rule" /></div><h1>Find your<br /><em>next rabbit hole.</em></h1><p>A searchable index of ideas, projects, and resources gathered here.</p></div>
-    <div className="discover-toolbar"><label className="search-field"><Search size={19} /><span className="sr-only">Search published content</span><input value={search} onChange={e => updateParam('q', e.target.value)} placeholder="Search titles, topics, tags…" /><kbd>↵</kbd></label><label className="filter-field"><Filter size={17} /><span className="sr-only">Filter by category</span><select value={activeCategory} onChange={e => updateParam('category', e.target.value)}><option value="all">All categories</option>{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select><ChevronDown size={15} /></label></div>
-    <div className="filter-pills" role="group" aria-label="Filter by content type">{types.map(t => <button key={t} className={`filter-pill ${activeType === t ? 'selected' : ''}`} onClick={() => updateParam('type', t)} aria-pressed={activeType === t}>{t === 'all' ? 'Everything' : labelType(t as ContentType)}</button>)}</div>
-    <div className="results-line"><span>{loading ? 'Loading the archive…' : `${filtered.length} ${filtered.length === 1 ? 'result' : 'results'}`}</span><span>Sorted by newest</span></div>
-    {error && <InlineNotice text="The API could not be reached. Connect the backend and database to load published content." />}
-    {!loading && filtered.length > 0 && <ContentGrid items={filtered} compact />}
-    {!loading && !filtered.length && <div className="empty-state"><div className="empty-icon"><Search size={24} /></div><h2>{error ? 'Your archive is waiting to connect.' : 'Nothing here by that name. Yet.'}</h2><p>{error ? 'Run the Django API and connect Supabase PostgreSQL to show published items.' : 'Try another search or clear the filters. Newly published content will appear here.'}</p><button className="button button-outline" onClick={() => setSearchParams({})}>Clear all filters</button></div>}
+    <div className="discover-toolbar">
+      <label className="search-field"><Search size={19} /><span className="sr-only">Search published content</span><input value={search} onChange={e => updateParam('q', e.target.value)} placeholder="Search titles, topics, tags…" /><kbd>⌕</kbd></label>
+      <label className="filter-field"><Filter size={17} /><span className="sr-only">Filter by category</span><select value={activeCategory} onChange={e => updateParam('category', e.target.value)}><option value="all">All categories</option>{categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select><ChevronDown size={15} /></label>
+      <label className="filter-field"><span className="sr-only">Sort search results</span><select value={sort} onChange={e => updateParam('sort', e.target.value)}><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="title">Title A–Z</option></select><ChevronDown size={15} /></label>
+    </div>
+    <div className="filter-pills" role="group" aria-label="Filter by content type">{types.map(type => <button key={type} className={`filter-pill ${activeType === type ? 'selected' : ''}`} onClick={() => updateParam('type', type)} aria-pressed={activeType === type}>{type === 'all' ? 'Everything' : labelType(type)}</button>)}</div>
+    <div className="results-line"><span>{loading ? 'Searching the archive…' : `${total} ${total === 1 ? 'result' : 'results'}`}</span><span>{sort === 'title' ? 'Sorted by title' : sort === 'oldest' ? 'Sorted oldest first' : 'Sorted newest first'}</span></div>
+    {error && <InlineNotice text={error} />}
+    {loading && items.length === 0 && <LoadingRows />}
+    {!loading && items.length > 0 && <ContentGrid items={items} compact />}
+    {!loading && !items.length && <div className="empty-state"><div className="empty-icon"><Search size={24} /></div><h2>{error ? 'The archive could not be searched.' : 'Nothing here by that name. Yet.'}</h2><p>{error || 'Try another search or clear the filters. Newly published content will appear here.'}</p><button className="button button-outline" onClick={() => setSearchParams({})}>Clear all filters</button></div>}
+    {nextUrl && items.length > 0 && <div className="discover-load-more"><button className="button button-outline" onClick={() => void loadMore()} disabled={loadingMore}>{loadingMore ? 'Loading more…' : 'Load more results'} <ArrowDown size={15} /></button><span>Showing {items.length} of {total}</span></div>}
   </div>;
 }
-
-const BOOKMARKS_KEY = 'alib-bookmarks';
-
-function readBookmarks(): number[] {
-  try {
-    const saved = JSON.parse(localStorage.getItem(BOOKMARKS_KEY) || '[]');
-    return Array.isArray(saved) ? saved.filter((id): id is number => Number.isInteger(id)) : [];
-  } catch { return []; }
-}
-function writeBookmarks(ids: number[]) {
-  try { localStorage.setItem(BOOKMARKS_KEY, JSON.stringify([...new Set(ids)])); window.dispatchEvent(new Event('alib-bookmarks-changed')); } catch { /* Storage may be disabled; the page remains usable. */ }
-}
-function BookmarkButton({ itemId, compact = false }: { itemId: number; compact?: boolean }) {
-  const [saved, setSaved] = useState(() => readBookmarks().includes(itemId));
-  useEffect(() => {
-    const sync = () => setSaved(readBookmarks().includes(itemId));
-    window.addEventListener('alib-bookmarks-changed', sync);
-    window.addEventListener('storage', sync);
-    return () => { window.removeEventListener('alib-bookmarks-changed', sync); window.removeEventListener('storage', sync); };
-  }, [itemId]);
-  return <button type="button" className={`bookmark-button ${compact ? 'bookmark-compact' : ''} ${saved ? 'is-saved' : ''}`} onClick={() => { const ids = readBookmarks(); writeBookmarks(saved ? ids.filter(id => id !== itemId) : [...ids, itemId]); setSaved(!saved); }} aria-pressed={saved} aria-label={saved ? 'Remove from reading list' : 'Save to reading list'} title={saved ? 'Remove from reading list' : 'Save to reading list'}>{saved ? <Bookmark size={15} fill="currentColor" /> : <Bookmark size={15} />}{compact ? null : <span>{saved ? 'Saved' : 'Save for later'}</span>}</button>;
-}
-
-function FavoritesPage() {
-  const [allItems, setAllItems] = useState<ContentItem[]>([]);
-  const [savedIds, setSavedIds] = useState<number[]>(() => readBookmarks());
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  useEffect(() => {
-    const sync = () => setSavedIds(readBookmarks());
-    window.addEventListener('alib-bookmarks-changed', sync);
-    window.addEventListener('storage', sync);
-    api.content({ page_size: '100' }).then(data => setAllItems(data.results)).catch(e => setError(e instanceof Error ? e.message : 'Unable to load the reading list.')).finally(() => setLoading(false));
-    return () => { window.removeEventListener('alib-bookmarks-changed', sync); window.removeEventListener('storage', sync); };
-  }, []);
-  const saved = allItems.filter(item => savedIds.includes(item.id));
-  return <div className="page-wrap section-wrap page-enter"><div className="page-hero page-hero-small"><div className="eyebrow">YOUR PRIVATE READING LIST <span className="eyebrow-rule" /></div><h1>Keep close<span className="title-period">.</span></h1><p>Items saved in this browser for another time. This list stays on this device and does not require an account.</p></div>{loading ? <LoadingRows /> : error ? <EmptyState title="Your reading list could not load." body={error} /> : saved.length ? <ContentGrid items={saved} compact /> : <EmptyState title="Save something for later." body="Use the bookmark icon on any public item and it will appear here on this browser." action={<Link className="button button-primary" to="/discover">Explore the archive <ArrowRight size={15} /></Link>} />}</div>;
+}</div>;
 }
 
 function LibraryPage({ title, description, types }: { title: string; description: string; types: ContentType[] }) {
