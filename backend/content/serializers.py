@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Category, Collection, CollectionItem, ContentItem, CreatorProfile, MediaAsset, Tag, VisitorSuggestion
+from .models import Category, Collection, CollectionItem, ContentComment, ContentItem, ContentRevision, CreatorProfile, MediaAsset, SiteSettings, Tag, VisitorSuggestion
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -76,7 +76,7 @@ class CreatorProfileSerializer(serializers.ModelSerializer):
 class MediaAssetSerializer(serializers.ModelSerializer):
     class Meta:
         model = MediaAsset
-        fields = ['id', 'title', 'description', 'original_filename', 'mime_type', 'file_size', 'visibility', 'downloadable', 'created_at', 'updated_at']
+        fields = ['id', 'title', 'description', 'alt_text', 'original_filename', 'mime_type', 'file_size', 'visibility', 'downloadable', 'created_at', 'updated_at']
         read_only_fields = ['id', 'original_filename', 'mime_type', 'file_size', 'created_at', 'updated_at']
 
 class VisitorSuggestionSerializer(serializers.ModelSerializer):
@@ -84,3 +84,25 @@ class VisitorSuggestionSerializer(serializers.ModelSerializer):
         model = VisitorSuggestion
         fields = ['id', 'title', 'url', 'reason', 'status', 'created_at', 'updated_at']
         read_only_fields = ['id', 'status', 'created_at', 'updated_at']
+
+
+class SiteSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SiteSettings
+        fields = ['site_title', 'logo_url', 'favicon_url', 'seo_description', 'homepage_sections', 'theme_preferences', 'updated_at']
+        read_only_fields = ['updated_at']
+
+
+class ContentRevisionSerializer(serializers.ModelSerializer):
+    editor_username = serializers.CharField(source='editor.username', read_only=True, default='')
+    class Meta:
+        model = ContentRevision
+        fields = ['id', 'revision_number', 'snapshot', 'editor_username', 'created_at']
+        read_only_fields = fields
+
+
+class ContentCommentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContentComment
+        fields = ['id', 'name', 'body', 'status', 'created_at']
+        read_only_fields = ['id', 'status', 'created_at']
