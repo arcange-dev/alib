@@ -9,7 +9,7 @@ export interface ContentItem {
   id: number; title: string; slug: string; summary: string; body: string; content_type: ContentType;
   source_url: string; cover_image_url: string; category: Category | null; tags: Tag[];
   visibility: Visibility; status: ContentStatus; featured: boolean; allow_download: boolean;
-  published_at: string | null; created_at: string; updated_at: string; collection_slugs: string[];
+  published_at: string | null; scheduled_for: string | null; created_at: string; updated_at: string; collection_slugs: string[];
 }
 export interface CreatorProfile {
   display_name: string; headline: string; biography: string; avatar_url: string; location: string;
