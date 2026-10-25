@@ -186,10 +186,10 @@ kbd { padding: 2px 5px; color: var(--muted); background: var(--surface-soft); bo
 .feature-empty-graphic { position: relative; display: grid; place-items: center; background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px); background-size: 25px 25px; overflow: hidden; }
 .paper { position: absolute; width: 42%; aspect-ratio: .72; border: 1px solid #b8b9b3; background: #f7f6f2; box-shadow: 12px 12px 0 rgba(24,24,27,.06); }
 .paper-one { transform: rotate(-17deg) translate(-37px, -6px); background: #ecdcb9; }
-.paper-two { transform: rotate(12deg) translate(29px, -6px); background: #eec5d9; }
+.paper-two { transform: rotate(12deg) translate(29px, -6px); background: #c7d2fe; }
 .paper-three { display: flex; flex-direction: column; justify-content: space-between; padding: 22px; background: #18181b; color: #fff; transform: rotate(-1deg) translateY(12px); }
 .paper-three span { font-family: var(--serif); font-size: 37px; }
-.paper-three small { color: #eec5d9; font-size: 8px; letter-spacing: .16em; line-height: 1.6; }
+.paper-three small { color: #c7d2fe; font-size: 8px; letter-spacing: .16em; line-height: 1.6; }
 .paper-spark { position: absolute; z-index: 3; top: 20%; right: 21%; color: var(--accent-secondary-hover); font-size: 36px; }
 .latest-block { background: var(--surface-soft); width: 100%; padding-inline: max(var(--gutter), calc((100% - var(--content)) / 2)); }
 .latest-block .content-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 15px; }
@@ -300,7 +300,7 @@ kbd { padding: 2px 5px; color: var(--muted); background: var(--surface-soft); bo
 .collection-card { display: flex; flex-direction: column; align-items: flex-start; min-height: 340px; padding: 22px; border: 1px solid var(--border); background: var(--surface); transition: transform var(--motion) var(--ease), border-color var(--motion-fast) ease; }
 .collection-card:hover { transform: translateY(-4px); border-color: var(--border-strong); }
 .collection-graphic, .collection-card > img { position: relative; display: flex; align-items: flex-start; justify-content: space-between; width: 100%; height: 160px; margin-bottom: 24px; padding: 17px; object-fit: cover; background: #d9d4c9; color: #18181b; }
-.collection-card-1 .collection-graphic { background: #eec5d9; }
+.collection-card-1 .collection-graphic { background: #c7d2fe; }
 .collection-card-2 .collection-graphic { background: #cbd9d9; }
 .collection-graphic span { font-size: 9px; font-weight: 700; letter-spacing: .15em; }
 .collection-graphic svg { position: absolute; right: 27px; bottom: 24px; }
@@ -361,7 +361,7 @@ kbd { padding: 2px 5px; color: var(--muted); background: var(--surface-soft); bo
 .admin-auth-art h1 { margin: 24px 0 18px; font-family: var(--serif); font-size: clamp(48px, 5.2vw, 69px); font-weight: 500; letter-spacing: -.05em; line-height: 1.02; }
 .admin-auth-art h1 em { color: #d2d2d8; font-weight: 400; }
 .admin-auth-art p { max-width: 350px; color: #d2d2d8; font-size: 14px; line-height: 1.8; }
-.auth-art-stamp { align-self: flex-start; padding: 11px 13px; color: #f9a8d4; border: 1px solid #4b4b52; font-size: 9px; letter-spacing: .15em; line-height: 1.65; }
+.auth-art-stamp { align-self: flex-start; padding: 11px 13px; color: #facc15; border: 1px solid #4b4b52; font-size: 9px; letter-spacing: .15em; line-height: 1.65; }
 .admin-auth-form { position: relative; display: flex; flex-direction: column; justify-content: center; padding: clamp(25px, 5vw, 75px); }
 .admin-auth-form .back-link { position: absolute; top: 28px; left: clamp(25px, 5vw, 75px); }
 .admin-auth-form-inner { width: 100%; max-width: 420px; margin: auto; }
