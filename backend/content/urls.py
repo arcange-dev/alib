@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     AdminAnalyticsAPIView, AdminTeamAPIView, AdminTeamMemberAPIView, ContentReactionAPIView, AdminMediaViewSet, AdminProfileAPIView, AdminSiteSettingsAPIView, AdminStatsAPIView, AnalyticsEventAPIView, CategoryViewSet, CollectionViewSet,
     ContactAPIView, ContactInboxAPIView, ContentCommentViewSet, ContentItemViewSet, CsrfAPIView, CurrentUserAPIView, HomeAPIView, LoginAPIView,
-    LogoutAPIView, MediaSignedUrlAPIView, MediaUploadAPIView, NewsletterConfirmAPIView, NewsletterSubscribeAPIView, NewsletterUnsubscribeAPIView, PasswordResetConfirmAPIView, PasswordResetRequestAPIView, ProfileAPIView, PublicSiteSettingsAPIView, TagViewSet,
+    LogoutAPIView, MediaSignedUrlAPIView, MediaUploadAPIView, NewsletterConfirmAPIView, NewsletterSubscribeAPIView, NewsletterUnsubscribeAPIView, PasswordResetConfirmAPIView, PasswordResetRequestAPIView, ScheduledPublishTriggerAPIView, ProfileAPIView, PublicSiteSettingsAPIView, TagViewSet,
     VisitorSuggestionViewSet,
 )
 
@@ -22,6 +22,7 @@ urlpatterns = [
     path('admin/stats/', AdminStatsAPIView.as_view(), name='admin-stats'),
     path('admin/analytics/', AdminAnalyticsAPIView.as_view(), name='admin-analytics'),
     path('admin/team/', AdminTeamAPIView.as_view(), name='admin-team'),
+    path('admin/maintenance/publish-scheduled/', ScheduledPublishTriggerAPIView.as_view(), name='trigger-publish-scheduled'),
     path('admin/team/<int:user_id>/', AdminTeamMemberAPIView.as_view(), name='admin-team-member'),
     path('admin/settings/', AdminSiteSettingsAPIView.as_view(), name='admin-site-settings'),
     path('admin/contact/', ContactInboxAPIView.as_view(), name='admin-contact-inbox'),
