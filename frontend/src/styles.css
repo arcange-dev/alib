@@ -883,3 +883,32 @@ kbd { padding: 2px 5px; color: var(--muted); background: var(--surface-soft); bo
   .inbox-row { flex-direction: column; }
   .inbox-row-actions { width: 100%; }
 }
+
+
+/* Creator Studio collapsible navigation */
+.admin-sidebar-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 36px; }
+.admin-sidebar-header .brand { min-width: 0; }
+.sidebar-toggle { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 34px; min-width: 34px; height: 34px; min-height: 34px; padding: 0; color: var(--muted); }
+.sidebar-toggle:hover { color: var(--text-strong); background: var(--surface-soft); }
+.admin-sidebar.is-collapsed { width: 78px; padding: 26px 10px 18px; }
+.admin-sidebar.is-collapsed .admin-sidebar-header { flex-direction: column; gap: 12px; }
+.admin-sidebar.is-collapsed .admin-sidebar-header .brand { justify-content: center; padding: 0; }
+.admin-sidebar.is-collapsed .brand-word,
+.admin-sidebar.is-collapsed .studio-caption,
+.admin-sidebar.is-collapsed .admin-workspace-label,
+.admin-sidebar.is-collapsed .admin-user-meta { display: none; }
+.admin-sidebar.is-collapsed .admin-menu { gap: 5px; }
+.admin-sidebar.is-collapsed .admin-menu > button,
+.admin-sidebar.is-collapsed .admin-menu-link { justify-content: center; gap: 0; width: 100%; min-height: 42px; padding-inline: 0; font-size: 0; }
+.admin-sidebar.is-collapsed .admin-menu > button.selected::before { display: none; }
+.admin-sidebar.is-collapsed .admin-menu .nav-count,
+.admin-sidebar.is-collapsed .admin-menu-link svg:last-child { display: none; }
+.admin-sidebar.is-collapsed .admin-menu svg { width: 18px; height: 18px; }
+.admin-sidebar.is-collapsed .admin-menu-link { margin-top: 16px; padding-top: 0; }
+.admin-sidebar.is-collapsed .admin-sidebar-bottom { flex-direction: column; gap: 8px; padding-inline: 0; }
+.admin-sidebar.is-collapsed .admin-sidebar-bottom .icon-button { margin-left: 0; }
+.admin-page.sidebar-collapsed .admin-main { margin-left: 78px; }
+@media (max-width: 900px) {
+  .admin-sidebar-header { display: none; }
+  .admin-page.sidebar-collapsed .admin-main { margin-left: 0; }
+}
