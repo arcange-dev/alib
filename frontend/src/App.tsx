@@ -279,8 +279,6 @@ function DefaultCover({ type, title }: { type: ContentType; title: string }) {
     {nextUrl && items.length > 0 && <div className="discover-load-more"><button className="button button-outline" onClick={() => void loadMore()} disabled={loadingMore}>{loadingMore ? 'Loading more…' : 'Load more results'} <ArrowDown size={15} /></button><span>Showing {items.length} of {total}</span></div>}
   </div>;
 }
-}</div>;
-}
 
 function LibraryPage({ title, description, types }: { title: string; description: string; types: ContentType[] }) {
   const [items, setItems] = useState<ContentItem[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState('');
