@@ -51,7 +51,7 @@ export const api = {
     const query = new URLSearchParams(params);
     return request<PageResult<ContentItem>>(`/content/${query.size ? `?${query}` : ''}`);
   },
-  contentDetail: (slug: string) => request<ContentItem>(`/content/${encodeURIComponent(slug)}/`),
+  contentDetail: (slug: string) => request<ContentItem>(`/content/by-slug/${encodeURIComponent(slug)}/`),
   categories: () => request<PageResult<Category>>('/categories/'),
   collections: () => request<PageResult<Collection>>('/collections/'),
   profile: () => request<CreatorProfile>('/profile/'),
