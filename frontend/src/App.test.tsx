@@ -34,6 +34,7 @@ describe('Creator Studio navigation', () => {
     const collapseButton = await screen.findByRole('button', { name: 'Collapse sidebar' });
     const sidebar = document.querySelector('.admin-sidebar');
     expect(sidebar).not.toBeNull();
+    expect(document.querySelector('.admin-page.admin-layout')).not.toBeNull();
     fireEvent.click(collapseButton);
     await waitFor(() => expect(screen.getByRole('button', { name: 'Expand sidebar' })).toBeTruthy());
     expect(sidebar?.classList.contains('is-collapsed')).toBe(true);
