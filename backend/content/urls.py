@@ -1,9 +1,9 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 from .views import (
-    AdminAnalyticsAPIView, AdminMediaViewSet, AdminProfileAPIView, AdminSiteSettingsAPIView, AdminStatsAPIView, AnalyticsEventAPIView, CategoryViewSet, CollectionViewSet,
+    AdminAnalyticsAPIView, ContentReactionAPIView, AdminMediaViewSet, AdminProfileAPIView, AdminSiteSettingsAPIView, AdminStatsAPIView, AnalyticsEventAPIView, CategoryViewSet, CollectionViewSet,
     ContactAPIView, ContactInboxAPIView, ContentCommentViewSet, ContentItemViewSet, CsrfAPIView, CurrentUserAPIView, HomeAPIView, LoginAPIView,
-    LogoutAPIView, MediaSignedUrlAPIView, MediaUploadAPIView, NewsletterConfirmAPIView, NewsletterSubscribeAPIView, NewsletterUnsubscribeAPIView, ProfileAPIView, PublicSiteSettingsAPIView, TagViewSet,
+    LogoutAPIView, MediaSignedUrlAPIView, MediaUploadAPIView, NewsletterConfirmAPIView, NewsletterSubscribeAPIView, NewsletterUnsubscribeAPIView, PasswordResetConfirmAPIView, PasswordResetRequestAPIView, ProfileAPIView, PublicSiteSettingsAPIView, TagViewSet,
     VisitorSuggestionViewSet,
 )
 
@@ -36,5 +36,8 @@ urlpatterns = [
     path('auth/login/', LoginAPIView.as_view(), name='login'),
     path('auth/logout/', LogoutAPIView.as_view(), name='logout'),
     path('auth/me/', CurrentUserAPIView.as_view(), name='current-user'),
+    path('auth/password-reset/', PasswordResetRequestAPIView.as_view(), name='password-reset-request'),
+    path('auth/password-reset/confirm/', PasswordResetConfirmAPIView.as_view(), name='password-reset-confirm'),
+    path('content/<int:item_id>/reactions/', ContentReactionAPIView.as_view(), name='content-reactions'),
     path('', include(router.urls)),
 ]
