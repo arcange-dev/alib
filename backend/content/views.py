@@ -657,6 +657,13 @@ class AdminTeamMemberAPIView(APIView):
             return Response({'detail': 'Staff member not found.'}, status=status.HTTP_404_NOT_FOUND)
         if member.is_superuser and not request.user.is_superuser:
             raise PermissionDenied('Only the owner superuser can change the owner account.')
+        if request.data.get('reset_two_factor') is True:
+            if not request.user.is_superuser:
+                raise PermissionDenied('Only the owner superuser can reset another staff member’s authenticator.')
+            if member.pk == request.user.pk:
+                raise ValidationError({'reset_two_factor': 'Use a recovery procedure to reset your own authenticator.'})
+            StaffTwoFactor.objects.filter(user=member).delete()
+            AuditEvent.objects.create(actor=request.user, action='auth.2fa_reset_by_owner', object_type='User', object_id=str(member.pk))
         if member.pk == request.user.pk and request.data.get('is_active') is False:
             raise ValidationError({'is_active': 'You cannot deactivate your own account.'})
         if 'role' in request.data:
