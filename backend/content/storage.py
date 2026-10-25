@@ -26,6 +26,16 @@ def upload_object(object_key: str, mime_type: str, data: bytes):
         raise APIException(f'Storage upload failed with status {response.status_code}. Check the bucket and storage permissions.')
     return object_key
 
+def delete_object(object_key: str):
+    base_url, key, bucket = _configuration()
+    try:
+        response = requests.delete(f'{base_url}/storage/v1/object/{bucket}/{object_key}', headers=_headers(key), timeout=15)
+    except requests.RequestException as exc:
+        raise APIException('The storage provider could not be reached. Try again later.') from exc
+    if response.status_code not in (200, 201, 202, 204, 404):
+        raise APIException(f'Storage delete failed with status {response.status_code}.')
+    return True
+
 def signed_object_url(object_key: str, expires_in: int = 120):
     base_url, key, bucket = _configuration()
     try:

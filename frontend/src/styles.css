@@ -689,6 +689,11 @@ kbd { padding: 2px 5px; color: var(--muted); background: var(--surface-soft); bo
 .media-asset-meta .media-visibility { display: flex; flex-direction: row; align-items: center; gap: 7px; margin-top: 7px; color: var(--muted); font-size: 9px; }
 .media-asset-meta .media-visibility select { max-width: 110px; min-height: 29px; padding: 3px 6px; color: var(--text); border: 1px solid var(--border); background: var(--surface-soft); font-size: 9px; }
 .media-download-check { display: flex; align-items: center; gap: 6px; margin-top: 6px; color: var(--muted); font-size: 9px; }
+.media-asset-meta .media-title-edit input { width: 100%; min-width: 0; min-height: 26px; padding: 2px 6px; color: var(--text-strong); border: 1px solid var(--border); background: var(--surface-soft); font-size: 10px; font-weight: 600; }
+.media-asset-meta .media-visibility input[type="text"] { flex: 1 1 auto; min-width: 0; min-height: 26px; padding: 2px 6px; color: var(--text); border: 1px solid var(--border); background: var(--surface-soft); font-size: 9px; }
+.media-asset-actions { display: flex; flex: 0 0 auto; flex-direction: column; gap: 6px; margin-left: auto; }
+.media-asset-actions .button { margin-left: 0; }
+.media-asset-actions .media-delete:hover { color: var(--danger, #b42318); border-color: var(--danger, #b42318); }
 .media-download-check input { accent-color: var(--accent-hover); }
 
 

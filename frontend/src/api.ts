@@ -107,6 +107,7 @@ export const api = {
   saveContent: (payload: Partial<ContentItem>, id?: number) => request<ContentItem>(id ? `/content/${id}/` : '/content/', { method: id ? 'PATCH' : 'POST', body: JSON.stringify(payload) }),
   deleteContent: (id: number) => request<void>(`/content/${id}/`, { method: 'DELETE' }),
   media: () => request<PageResult<MediaAsset>>('/admin/media/'),
+  deleteMedia: (id: number) => request<void>(`/admin/media/${id}/`, { method: 'DELETE' }),
   updateMedia: (id: number, payload: { title?: string; description?: string; alt_text?: string; visibility?: string; downloadable?: boolean }) => request<MediaAsset>(`/admin/media/${id}/`, { method: 'PATCH', body: JSON.stringify(payload) }),
   uploadMedia: async (form: FormData, onProgress?: (progress: number) => void): Promise<MediaAsset> => {
     if (!csrfToken && !readCsrfCookie()) await api.csrf();

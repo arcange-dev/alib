@@ -7,7 +7,7 @@ from django.core.management import call_command, CommandError
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework.test import APIClient
-from .models import ContentItem
+from .models import ContentItem, MediaAsset
 
 
 class PublicContentTests(TestCase):
@@ -111,3 +111,51 @@ class BootstrapAdminCommandTests(TestCase):
         with self._env(username="owner"):
             with self.assertRaises(CommandError):
                 call_command("bootstrap_admin")
+
+
+class MediaAssetAdminTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.staff = get_user_model().objects.create_user(
+            username='media-staff', email='media@example.com',
+            password='Sufficiently-long-pass-123!', is_staff=True)
+        self.client.force_login(self.staff)
+
+    def _asset(self, **overrides):
+        defaults = dict(title='Cover art', original_filename='cover.png',
+                        storage_path='abc123/cover.png', mime_type='image/png', file_size=10)
+        defaults.update(overrides)
+        return MediaAsset.objects.create(**defaults)
+
+    def test_editor_can_edit_media_details(self):
+        asset = self._asset()
+        response = self.client.patch(f'/api/v1/admin/media/{asset.pk}/',
+                                     {'title': 'New cover', 'description': 'Updated caption', 'alt_text': 'Alt text'},
+                                     format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['title'], 'New cover')
+        asset.refresh_from_db()
+        self.assertEqual(asset.description, 'Updated caption')
+        self.assertEqual(asset.alt_text, 'Alt text')
+
+    def test_editor_can_delete_media_and_storage_cleanup_is_attempted(self):
+        asset = self._asset()
+        with patch('content.views.delete_object', return_value=True) as storage_delete:
+            response = self.client.delete(f'/api/v1/admin/media/{asset.pk}/')
+        self.assertEqual(response.status_code, 204)
+        storage_delete.assert_called_once_with('abc123/cover.png')
+        self.assertFalse(MediaAsset.objects.filter(pk=asset.pk).exists())
+
+    def test_delete_still_removes_the_record_when_storage_cleanup_fails(self):
+        asset = self._asset(title='Orphaned', storage_path='zzz/gone.png')
+        with patch('content.views.delete_object', side_effect=Exception('storage down')):
+            response = self.client.delete(f'/api/v1/admin/media/{asset.pk}/')
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(MediaAsset.objects.filter(pk=asset.pk).exists())
+
+    def test_anonymous_user_cannot_edit_or_delete_media(self):
+        client = APIClient()
+        asset = self._asset()
+        self.assertEqual(client.patch(f'/api/v1/admin/media/{asset.pk}/', {'title': 'Nope'}, format='json').status_code, 403)
+        self.assertEqual(client.delete(f'/api/v1/admin/media/{asset.pk}/').status_code, 403)
+        self.assertTrue(MediaAsset.objects.filter(pk=asset.pk).exists())

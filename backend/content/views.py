@@ -32,7 +32,7 @@ from rest_framework.views import APIView
 from .models import AnalyticsEvent, AuditEvent, Category, Collection, CollectionItem, ContactMessage, ContentComment, ContentItem, ContentRevision, ContentReaction, CreatorProfile, MediaAsset, NewsletterSubscriber, SiteSettings, StaffTwoFactor, Tag, VisitorSuggestion
 from .permissions import ADMIN_GROUP, EDITOR_GROUP, MODERATOR_GROUP, SUPPORT_GROUP, IsALIBAdministrator, IsALIBEditor, IsALIBModerator, IsALIBStaff, PublicReadAdminWrite, can_manage_content, can_moderate
 from .serializers import CategorySerializer, CollectionSerializer, ContentCommentSerializer, ContentItemSerializer, ContentRevisionSerializer, CreatorProfileSerializer, MediaAssetSerializer, SiteSettingsSerializer, TagSerializer, VisitorSuggestionSerializer
-from .storage import signed_object_url, upload_object
+from .storage import delete_object, signed_object_url, upload_object
 from .two_factor import decrypt_secret, encrypt_secret, generate_secret, provisioning_uri, verify_code
 
 
@@ -521,6 +521,15 @@ class AdminMediaViewSet(viewsets.ModelViewSet):
     serializer_class = MediaAssetSerializer
     permission_classes = [IsALIBEditor]
     queryset = MediaAsset.objects.all()
+
+    def perform_destroy(self, instance):
+        # Remove the stored file when storage is configured; the asset record is
+        # removed either way so the studio stays consistent.
+        try:
+            delete_object(instance.storage_path)
+        except Exception:  # noqa: BLE001 - storage cleanup is best effort
+            pass
+        instance.delete()
 
 class MediaUploadAPIView(APIView):
     permission_classes = [IsALIBEditor]
