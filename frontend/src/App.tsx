@@ -241,7 +241,7 @@ function HomePage() {
     <section className="ticker" aria-label="ALIB content types"><div className="ticker-inner"><span>READ</span><i>✳</i><span>DISCOVER</span><i>✳</i><span>COLLECT</span><i>✳</i><span>BUILD</span><i>✳</i><span>RETURN</span><i>✳</i><span>READ</span><i>✳</i><span>DISCOVER</span><i>✳</i><span>COLLECT</span></div></section>
 
     <section className="section-wrap section-block intro-band">
-      <div className="section-kicker">THE IDEA / 001</div><div className="intro-band-copy"><h2>{siteCopy(settings, 'home.intro.heading', 'Not just a portfolio. A place to wander.')}</h2><p>{siteCopy(settings, 'home.intro.body', 'Some things deserve more than a bookmark. ALIB brings together the work being made, the ideas being explored, and the resources worth passing along — all in one thoughtful, searchable place.')}</p><Link className="text-link" to="/about">Get to know the space <ArrowUpRight size={16} /></Link></div>
+      <div className="section-kicker">THE IDEA / 001</div><div className="intro-band-copy"><h2>{siteCopy(settings, 'home.intro.heading', 'Not just a portfolio.\nA place to wander.').split('\n').map((part, index) => <Fragment key={index}>{index > 0 && <br />}{index === 1 ? <em>{part}</em> : part}</Fragment>)}</h2><p>{siteCopy(settings, 'home.intro.body', 'Some things deserve more than a bookmark. ALIB brings together the work being made, the ideas being explored, and the resources worth passing along — all in one thoughtful, searchable place.')}</p><Link className="text-link" to="/about">Get to know the space <ArrowUpRight size={16} /></Link></div>
     </section>
 
     {homeSections.filter(name => name in sectionMap && sectionMap[name]).map(name => <Fragment key={name}>{sectionMap[name]}</Fragment>)}
@@ -674,7 +674,7 @@ function AboutPage() {
   const settings = useSiteSettings();
   const [profile, setProfile] = useState<CreatorProfile>(fallbackProfile);
   useEffect(() => { api.profile().then(setProfile).catch(() => {}); }, []);
-  return <div className="page-wrap section-wrap page-enter"><div className="page-hero"><div className="eyebrow">{siteCopy(settings, 'about.eyebrow', 'ABOUT THIS SPACE')} <span className="eyebrow-rule" /></div><h1>{siteCopy(settings, 'about.title', 'One place. Many curiosities.')}</h1><p>{profile.biography}</p></div><div className="about-layout"><div className="about-letter"><span className="section-kicker">A NOTE FROM THE CREATOR</span><div className="about-monogram">A<span>.</span></div><h2>{profile.display_name}</h2><p>{profile.headline}</p><p className="about-muted">This profile is editable through Creator Studio. Personal details and social links will appear here only when the creator adds them.</p><Link to="/contact" className="button button-primary">Get in touch <ArrowRight size={16} /></Link></div><div className="about-principles"><div><span className="principle-index">01</span><div><h3>Keep what matters.</h3><p>A curated library, not a race to publish. Useful finds and meaningful work belong side by side.</p></div></div><div><span className="principle-index">02</span><div><h3>Make it easy to return.</h3><p>Search, collections, clear categories, and direct links keep the archive useful as it grows.</p></div></div><div><span className="principle-index">03</span><div><h3>Share with intention.</h3><p>Public items are discoverable; drafts and private files stay behind the appropriate permissions.</p></div></div></div></div></div>;
+  return <div className="page-wrap section-wrap page-enter"><div className="page-hero"><div className="eyebrow">{siteCopy(settings, 'about.eyebrow', 'ABOUT THIS SPACE')} <span className="eyebrow-rule" /></div><h1>{siteCopy(settings, 'about.title', 'One place.\nMany curiosities.').split('\n').map((part, index) => <Fragment key={index}>{index > 0 && <br />}{index === 1 ? <em>{part}</em> : part}</Fragment>)}</h1><p>{profile.biography}</p></div><div className="about-layout"><div className="about-letter"><span className="section-kicker">A NOTE FROM THE CREATOR</span><div className="about-monogram">A<span>.</span></div><h2>{profile.display_name}</h2><p>{profile.headline}</p><p className="about-muted">This profile is editable through Creator Studio. Personal details and social links will appear here only when the creator adds them.</p><Link to="/contact" className="button button-primary">Get in touch <ArrowRight size={16} /></Link></div><div className="about-principles"><div><span className="principle-index">01</span><div><h3>Keep what matters.</h3><p>A curated library, not a race to publish. Useful finds and meaningful work belong side by side.</p></div></div><div><span className="principle-index">02</span><div><h3>Make it easy to return.</h3><p>Search, collections, clear categories, and direct links keep the archive useful as it grows.</p></div></div><div><span className="principle-index">03</span><div><h3>Share with intention.</h3><p>Public items are discoverable; drafts and private files stay behind the appropriate permissions.</p></div></div></div></div></div>;
 }
 
 function ContactPage() {
@@ -817,6 +817,7 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
       if (mediaInputRef.current) mediaInputRef.current.value = '';
     }
   }
+  useAdminHeaderRefresh('media', () => { void loadMedia(); });
   function refreshActivePanel() {
     window.dispatchEvent(new CustomEvent('alib-admin-header-refresh', { detail: tab }));
   }
@@ -876,7 +877,7 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
   {tab === 'editor' && canManage && <button className="button button-primary button-small" type="submit" form="admin-content-editor-form"><Check size={15} /> Save content</button>}
   {tab === 'team' && isAdmin && <button className="button button-primary button-small" type="submit" form="team-invite-form"><Plus size={15} /> Invite member</button>}
   {tab === 'newsletter' && isAdmin && <a className="button button-primary button-small" href="/api/v1/admin/newsletter/?export=csv"><ArrowDown size={15} /> Export CSV</a>}
-  {['inbox', 'analytics', 'moderation', 'comments', 'audit'].includes(tab) && <button className="button button-outline button-small" onClick={refreshActivePanel}><Clock3 size={15} /> Refresh</button>}</div></header>
+  {['inbox', 'analytics', 'moderation', 'comments', 'audit', 'team', 'newsletter', 'collections', 'media'].includes(tab) && <button className="button button-outline button-small" onClick={refreshActivePanel}><Clock3 size={15} /> Refresh</button>}</div></header>
       <div className="admin-content-area">{message && <div className={message.toLowerCase().includes('could not') || message.toLowerCase().includes('unable') ? 'error-message' : 'success-message'} role="status">{message}<button onClick={() => setMessage('')} aria-label="Dismiss message"><X size={15} /></button></div>}
       {tab === 'overview' && <><div className="admin-welcome"><div><span className="section-kicker">YOUR DIGITAL HOME</span><h1>Good to see you, {user.username}.</h1><p>Here’s what’s happening in your archive.</p></div><button className="button button-outline" onClick={() => void reload()} disabled={busy}>{busy ? 'Refreshing…' : 'Refresh data'} <Clock3 size={15} /></button></div><div className="admin-stat-grid"><AdminStat icon={<FileText size={18} />} label="Published" value={stats?.published ?? '—'} hint="Visible to visitors" /><AdminStat icon={<PenLine size={18} />} label="Drafts" value={stats?.drafts ?? '—'} hint="Still in the studio" /><AdminStat icon={<Clock3 size={18} />} label="Scheduled" value={stats?.scheduled ?? '—'} hint="Waiting to publish" /><AdminStat icon={<FolderOpen size={18} />} label="Media assets" value={stats?.assets ?? '—'} hint="Stored asset records" /></div><div className="admin-overview-grid"><section className="admin-panel recent-content-panel"><div className="admin-panel-heading"><div><span className="section-kicker">THE ARCHIVE</span><h2>Recent content</h2></div><button className="text-link" onClick={() => setTab('content')}>View all <ArrowRight size={15} /></button></div>{items.slice(0, 5).length ? <div className="admin-recent-list">{items.slice(0, 5).map(item => <div key={item.id} className="admin-recent-row"><div className="admin-recent-icon"><FileText size={17} /></div><div className="admin-recent-meta"><strong>{item.title}</strong><span>{labelType(item.content_type)} · updated {formatDate(item.updated_at)}</span></div><StatusPill status={item.status} /><button className="icon-button" aria-label={`Edit ${item.title}`} onClick={() => editItem(item)}><ArrowUpRight size={16} /></button></div>)}</div> : <div className="admin-empty"><PenLine size={22} /><h3>Your content starts here.</h3><p>Create a draft or publish a first item. Publicly published items become discoverable automatically.</p><button className="button button-primary" onClick={newItem}><Plus size={15} /> Create first item</button></div>}</section><section className="admin-panel quick-actions-panel"><div className="admin-panel-heading"><div><span className="section-kicker">QUICK ACTIONS</span><h2>Keep things moving</h2></div><Command size={19} /></div><button className="quick-action" onClick={newItem}><span className="quick-action-icon"><Plus size={17} /></span><span><strong>Write something new</strong><small>Create an article, link, project, or resource.</small></span><ArrowRight size={16} /></button><button className="quick-action" onClick={() => { setTab('media'); void loadMedia(); }}><span className="quick-action-icon"><Upload size={17} /></span><span><strong>Add a media asset</strong><small>Manage covers and permitted downloads.</small></span><ArrowRight size={16} /></button><Link className="quick-action" to="/" target="_blank"><span className="quick-action-icon"><Globe2 size={17} /></span><span><strong>Preview the public site</strong><small>See the visitor experience.</small></span><ArrowUpRight size={16} /></Link><div className="security-note"><ShieldCheck size={16} /><span>Publishing is controlled by your account permissions. Drafts are not shown to anonymous visitors.</span></div></section></div></>}
       {tab === 'content' && <section className="admin-panel content-management-panel"><div className="admin-panel-heading"><div><span className="section-kicker">CONTENT MANAGER</span><h2>Everything in the archive</h2><p>{items.length} items returned by the API</p></div><button className="button button-primary" onClick={newItem}><Plus size={15} /> New item</button></div><div className="content-table-wrap"><table className="content-table"><thead><tr><th>Title</th><th>Type</th><th>Status</th><th>Visibility</th><th>Updated</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>{items.map(item => <tr key={item.id}><td><div className="table-title"><span className="table-thumb"><FileText size={16} /></span><span><strong>{item.title}</strong><small>/{item.slug}</small></span></div></td><td>{labelType(item.content_type)}</td><td><StatusPill status={item.status} /></td><td><span className="visibility-label">{item.visibility}</span></td><td>{formatDate(item.updated_at)}</td><td><div className="table-actions"><button className="icon-button" onClick={() => editItem(item)} aria-label={`Edit ${item.title}`}><PenLine size={15} /></button><button className="icon-button danger-icon" onClick={() => void removeItem(item)} aria-label={`Delete ${item.title}`}><Trash2 size={15} /></button></div></td></tr>)}</tbody></table>{!items.length && <div className="table-empty"><FolderOpen size={22} /><p>No items have been added yet.</p><button className="button button-outline" onClick={newItem}><Plus size={15} /> Create your first item</button></div>}</div></section>}
@@ -938,6 +939,7 @@ function NewsletterSubscribersPanel({ onMessage }: { onMessage: (message: string
   async function reload() { setLoading(true); try { setSubscribers(await api.newsletterSubscribers(filter)); } catch (e) { onMessage(e instanceof Error ? e.message : 'Subscribers could not load.'); } finally { setLoading(false); } }
   useEffect(() => { void reload(); }, [filter]);
   const confirmed = subscribers.filter(row => row.is_active).length;
+  useAdminHeaderRefresh('newsletter', () => { void reload(); });
   return <section className="admin-panel"><div className="admin-panel-heading"><div><span className="section-kicker">OPT-IN AUDIENCE</span><h2>Newsletter subscribers</h2><p>Only confirmed subscriptions are active. The export contains email addresses and must be treated as private data.</p></div><AtSign size={19} /></div>
     <div className="newsletter-admin-controls"><label>Subscription status<select value={filter} onChange={e => setFilter(e.target.value)}><option value="all">All statuses</option><option value="true">Confirmed</option><option value="false">Pending / inactive</option></select></label><a className="button button-primary button-small" href="/api/v1/admin/newsletter/?export=csv"><ArrowDown size={14} /> Export CSV</a></div>
     <div className="admin-stat-grid"><AdminStat icon={<AtSign size={18} />} label="Loaded subscribers" value={subscribers.length} hint="Filtered list, up to 500" /><AdminStat icon={<Check size={18} />} label="Confirmed in view" value={confirmed} hint="Active opt-ins only" /></div>
@@ -976,6 +978,7 @@ function TeamManagementPanel({ isOwner, currentUserId, onMessage }: { isOwner: b
     try { const saved = await api.updateTeamMember(member.id, payload); setMembers(current => current.map(row => row.id === saved.id ? saved : row)); onMessage(`Updated access for ${member.username}.`); }
     catch (e) { onMessage(e instanceof Error ? e.message : 'Team access could not be updated.'); await reload(); }
   }
+  useAdminHeaderRefresh('team', () => { void reload(); });
   return <div className="team-management-layout">
     <section className="admin-panel"><div className="admin-panel-heading"><div><span className="section-kicker">STAFF ACCESS</span><h2>Invite a teammate</h2><p>A setup link is emailed to the invited member. SMTP must be configured on the server.</p></div><Users size={19} /></div>
       <form id="team-invite-form" className="settings-form" onSubmit={invite}>
@@ -1054,14 +1057,15 @@ function SiteSettingsPanel({ onMessage }: { onMessage: (message: string) => void
   const [settings, setSettings] = useState<SiteSettings>({ site_title: 'ALIB — Digital Home', logo_url: '', favicon_url: '', seo_description: '', homepage_sections: ['featured', 'latest', 'categories', 'collections'], theme_preferences: { primary: '#2563eb', secondary: '#facc15' }, owner_name: 'Mukamyi Izere Arcange', copyright_text: '© {year} {owner_name}. All rights reserved.', site_copy: {} });
   const [loading, setLoading] = useState(true);
   const [, setSaving] = useState(false);
-  const [copyJson, setCopyJson] = useState('{}');
+  const [newCopyKey, setNewCopyKey] = useState('');
+  const [newCopyValue, setNewCopyValue] = useState('');
   const sectionOptions = [
     { key: 'featured', label: 'Featured content', help: 'Curated highlights near the top of the homepage.' },
     { key: 'latest', label: 'Latest content', help: 'Recently published articles and resources.' },
     { key: 'categories', label: 'Categories', help: 'Browse the archive by topic.' },
     { key: 'collections', label: 'Collections', help: 'Hand-curated groups of content.' },
   ] as const;
-  useEffect(() => { api.settings().then(value => { setSettings(value); setCopyJson(JSON.stringify(value.site_copy || {}, null, 2)); }).catch(e => onMessage(e instanceof Error ? e.message : 'Could not load site settings.')).finally(() => setLoading(false)); }, []);
+  useEffect(() => { api.settings().then(value => { setSettings({ ...value, site_copy: value.site_copy || {} }); }).catch(e => onMessage(e instanceof Error ? e.message : 'Could not load site settings.')).finally(() => setLoading(false)); }, []);
   function set<K extends keyof SiteSettings>(key: K, value: SiteSettings[K]) { setSettings(prev => ({ ...prev, [key]: value })); }
   const visibleSections = settings.homepage_sections.filter((key, index, all) => sectionOptions.some(option => option.key === key) && all.indexOf(key) === index);
   const hiddenSections = sectionOptions.filter(option => !visibleSections.includes(option.key));
@@ -1083,29 +1087,36 @@ function SiteSettingsPanel({ onMessage }: { onMessage: (message: string) => void
   }
   async function save(e: FormEvent) {
     e.preventDefault();
-    let siteCopyValue: Record<string, string>;
-    try {
-      const parsed: unknown = JSON.parse(copyJson);
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || Object.entries(parsed).some(([key, value]) => !key.trim() || typeof value !== 'string')) throw new Error('Use a JSON object with non-empty keys and text values.');
-      siteCopyValue = parsed as Record<string, string>;
-    } catch (error) {
-      onMessage(error instanceof Error ? 'Website copy JSON is invalid: ' + error.message : 'Website copy JSON is invalid.');
-      return;
-    }
     setSaving(true);
     try {
-      const saved = await api.saveSettings({ ...settings, owner_name: settings.owner_name.trim() || 'Mukamyi Izere Arcange', site_copy: siteCopyValue });
-      setSettings(saved); setCopyJson(JSON.stringify(saved.site_copy || {}, null, 2));
+      const saved = await api.saveSettings({ ...settings, owner_name: settings.owner_name.trim() || 'Mukamyi Izere Arcange' });
+      setSettings({ ...saved, site_copy: saved.site_copy || {} });
       window.dispatchEvent(new CustomEvent('alib-site-settings-updated', { detail: saved }));
       onMessage('Site settings saved. Public copy and copyright are updated.');
       document.title = saved.site_title;
-    } catch (error) { onMessage(error instanceof Error ? error.message : 'Settings could not be saved.'); }
-    finally { setSaving(false); }
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : 'Settings could not be saved.');
+    } finally { setSaving(false); }
+  }
+  function updateCopy(key: string, value: string) {
+    setSettings(previous => ({ ...previous, site_copy: { ...(previous.site_copy || {}), [key]: value } }));
+  }
+  function addCopy() {
+    const key = newCopyKey.trim();
+    if (!key) { onMessage('Enter a key for the new website text.'); return; }
+    if (Object.prototype.hasOwnProperty.call(settings.site_copy || {}, key)) { onMessage('That website text key already exists. Edit it in the list below.'); return; }
+    setSettings(previous => ({ ...previous, site_copy: { ...(previous.site_copy || {}), [key]: newCopyValue } }));
+    setNewCopyKey('');
+    setNewCopyValue('');
+    onMessage('Website text field added. Save site settings to publish it.');
   }
   return <section className="admin-panel settings-panel"><div className="admin-panel-heading"><div><span className="section-kicker">SITE CONFIGURATION</span><h2>Brand, profile and homepage</h2><p>{loading ? 'Loading settings…' : 'These values are saved in the database.'}</p></div><Settings2 size={19} /></div><form id="site-settings-form" className="settings-form" onSubmit={save}><label>Site title<input required maxLength={140} value={settings.site_title} onChange={e => set('site_title', e.target.value)} /></label><label>SEO description<textarea rows={3} maxLength={300} value={settings.seo_description} onChange={e => set('seo_description', e.target.value)} /></label><div className="form-two-col"><label>Logo URL<input type="url" value={settings.logo_url} onChange={e => set('logo_url', e.target.value)} placeholder="https://… (optional)" /></label><label>Favicon URL<input type="url" value={settings.favicon_url} onChange={e => set('favicon_url', e.target.value)} placeholder="https://… (optional)" /></label></div>
     <div className="form-two-col"><label>Website owner<input required maxLength={160} value={settings.owner_name} onChange={e => set('owner_name', e.target.value)} /></label><label>Copyright template<input maxLength={240} value={settings.copyright_text} onChange={e => set('copyright_text', e.target.value)} placeholder="© {year} {owner_name}. All rights reserved." /></label></div>
     <p className="settings-help-text">Use <code>{'{year}'}</code> for the current year and <code>{'{owner_name}'}</code> for the website owner. The public copyright automatically updates each year.</p>
-    <div className="site-copy-editor"><div><span className="section-kicker">PUBLIC WEBSITE WORDING</span><h3>Edit public copy</h3><p>Edit displayed wording across the homepage, navigation, About, Contact, Recommendations, and footer. Keep keys unchanged and edit their string values. Additional keys are saved for future copy-controlled areas.</p></div><label>Website text (JSON)<textarea rows={18} spellCheck={false} aria-label="Editable public website copy as JSON" value={copyJson} onChange={e => setCopyJson(e.target.value)} /></label><p className="settings-help-text">Common keys: <code>home.hero.intro</code>, <code>home.intro.heading</code>, <code>about.title</code>, <code>contact.intro</code>, <code>suggest.intro</code>, <code>footer.description</code>, and <code>nav.home</code>.</p></div>
+    <div className="site-copy-editor"><div><span className="section-kicker">PUBLIC WEBSITE WORDING</span><h3>Edit website text</h3><p>Edit the wording below using normal text fields. These settings control text in the homepage, navigation, About, Contact, Recommendations, and footer. Changes are published when you press Save site settings in the top header.</p></div>
+      <div className="site-copy-fields">{Object.entries(settings.site_copy || {}).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => <label className="site-copy-field" key={key}><span>{key.split('.').map(part => part.replaceAll('_', ' ')).join(' / ')}</span>{/(heading|body|intro|description)/i.test(key) ? <textarea rows={2} aria-label={key} value={value} onChange={e => updateCopy(key, e.target.value)} /> : <input type="text" aria-label={key} value={value} onChange={e => updateCopy(key, e.target.value)} />}</label>)}</div>
+      <details className="site-copy-add"><summary>Add another text field</summary><div className="form-two-col"><label>Text key<input value={newCopyKey} onChange={e => setNewCopyKey(e.target.value)} placeholder="e.g. contact.privacy_note" /></label><label>Displayed text<input value={newCopyValue} onChange={e => setNewCopyValue(e.target.value)} placeholder="Text visitors should see" /></label></div><button type="button" className="button button-outline button-small" onClick={addCopy}>Add field</button><p className="settings-help-text">New keys are stored for future use; they will affect the website once a page uses that key.</p></details>
+    </div>
     <div className="homepage-section-controls"><div><span className="section-kicker">HOMEPAGE SECTIONS</span><p>Choose what appears on the public homepage. Move visible sections up or down to change their order.</p></div>
       {visibleSections.length ? visibleSections.map((key, index) => { const option = sectionOptions.find(section => section.key === key)!; return <div className="homepage-section-row" key={key}><div><strong>{index + 1}. {option.label}</strong><small>{option.help}</small></div><div className="homepage-section-actions"><button type="button" className="button button-outline button-small" disabled={index === 0} aria-label={`Move ${option.label} up`} onClick={() => moveSection(key, -1)}>Up</button><button type="button" className="button button-outline button-small" disabled={index === visibleSections.length - 1} aria-label={`Move ${option.label} down`} onClick={() => moveSection(key, 1)}>Down</button><button type="button" className="button button-outline button-small homepage-hide-button" onClick={() => toggleSection(key, false)}>Hide</button></div></div>; }) : <p className="homepage-sections-empty">All homepage sections are hidden. Add one below to show content to visitors.</p>}
       {hiddenSections.length > 0 && <div className="homepage-section-additions"><span className="section-kicker">HIDDEN SECTIONS</span>{hiddenSections.map(option => <button type="button" key={option.key} className="button button-outline button-small" onClick={() => toggleSection(option.key, true)}>Show {option.label}</button>)}</div>}
@@ -1177,6 +1188,7 @@ function CollectionsManagerPanel({ items, onMessage, createRequest }: { items: C
   const [saving, setSaving] = useState(false);
   async function reload() { setLoading(true); try { const result = await api.collections(); setCollections(result.results); } catch (e) { onMessage(e instanceof Error ? e.message : 'Collections could not load.'); } finally { setLoading(false); } }
   useEffect(() => { void reload(); }, []);
+  useAdminHeaderRefresh('collections', () => { void reload(); });
   function editCollection(row: Collection) { setCollectionId(row.id); setTitle(row.title); setDescription(row.description || ''); setCover(row.cover_image_url || ''); setVisibility(row.visibility || 'public'); setSelectedIds(row.current_item_ids || items.filter(x => x.collection_slugs?.includes(row.slug)).map(x => x.id)); }
   function reset() { setCollectionId(undefined); setTitle(''); setDescription(''); setCover(''); setVisibility('public'); setSelectedIds([]); }
   useEffect(() => { if (createRequest > 0) reset(); }, [createRequest]);

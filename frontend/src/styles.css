@@ -958,3 +958,12 @@ kbd { padding: 2px 5px; color: var(--muted); background: var(--surface-soft); bo
   .admin-topbar-actions { flex-direction: row; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
   .admin-topbar-actions .admin-live-status { display: none; }
 }
+
+.site-copy-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.site-copy-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; color: var(--muted); font-size: 10px; text-transform: capitalize; }
+.site-copy-field > span { overflow-wrap: anywhere; }
+.site-copy-field input, .site-copy-field textarea { width: 100%; }
+.site-copy-add { padding-top: 14px; border-top: 1px solid var(--border); }
+.site-copy-add summary { cursor: pointer; color: var(--text-strong); font-size: 11px; font-weight: 700; }
+.site-copy-add > .form-two-col { margin: 14px 0; }
+@media (max-width: 760px) { .site-copy-fields { grid-template-columns: 1fr; } }
