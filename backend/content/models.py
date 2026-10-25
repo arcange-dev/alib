@@ -167,7 +167,7 @@ class AnalyticsEvent(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     class Meta:
         ordering = ['-created_at']
-        indexes = [models.Index(fields=['event_type', 'created_at']), models.Index(fields=['path', 'created_at'])]
+        indexes = [models.Index(fields=['event_type', 'created_at'], name='content_ana_event_t_6b18c1_idx'), models.Index(fields=['path', 'created_at'], name='content_ana_path_72f48a_idx')]
 
 
 class NewsletterSubscriber(models.Model):
