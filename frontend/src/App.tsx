@@ -33,14 +33,34 @@ function App() {
   }, [dark]);
   useEffect(() => {
     const labels: Record<string, string> = { '/': 'Digital Home', '/discover': 'Discover', '/posts': 'Writing', '/favorites': 'Reading List', '/projects': 'Projects', '/resources': 'Resources', '/collections': 'Collections', '/about': 'About', '/contact': 'Contact', '/suggest': 'Recommend', '/admin': 'Creator Studio' };
-    document.title = `${labels[location.pathname] || 'Explore'} | ALIB`;
+    const defaultTitle = `${labels[location.pathname] || 'Explore'} | ALIB`;
+    const canonicalUrl = window.location.origin + location.pathname;
+    const setMeta = (attribute: 'name' | 'property', key: string, value: string) => {
+      let element = document.querySelector<HTMLMetaElement>(`meta[${attribute}="${key}"]`);
+      if (!element) { element = document.createElement('meta'); element.setAttribute(attribute, key); document.head.appendChild(element); }
+      element.content = value;
+    };
+    let canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    if (!canonical) { canonical = document.createElement('link'); canonical.rel = 'canonical'; document.head.appendChild(canonical); }
+    canonical.href = canonicalUrl;
+    document.title = defaultTitle;
+    setMeta('property', 'og:url', canonicalUrl);
+    setMeta('property', 'og:title', defaultTitle);
+    setMeta('name', 'twitter:card', 'summary_large_image');
+    setMeta('name', 'twitter:title', defaultTitle);
     void api.analytics('page_view', location.pathname).catch(() => {});
     api.settings().then(site => {
-      const description = document.querySelector('meta[name="description"]');
-      if (description && site.seo_description) description.setAttribute('content', site.seo_description);
+      const description = site.seo_description || 'A considered home for ideas, work, and curiosity.';
+      setMeta('name', 'description', description);
+      setMeta('property', 'og:description', description);
+      setMeta('name', 'twitter:description', description);
       const icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
       if (icon && site.favicon_url) icon.href = site.favicon_url;
-      if (location.pathname === '/' && site.site_title) document.title = site.site_title;
+      if (location.pathname === '/' && site.site_title) {
+        document.title = site.site_title;
+        setMeta('property', 'og:title', site.site_title);
+        setMeta('name', 'twitter:title', site.site_title);
+      }
     }).catch(() => {});
   }, [location.pathname]);
   useEffect(() => setMobileNav(false), []);
