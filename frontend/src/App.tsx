@@ -6,7 +6,7 @@ import {
   LogOut, Mail, Menu, MessageCircle, Moon, PenLine, Plus, Search, Share2, ShieldCheck, Sparkles, Sun, ThumbsUp, Trash2, Upload, Video, X, BarChart3, Settings2, Users, UserRound,
 } from 'lucide-react';
 import { api, type AdminStats, type AdminUser, type AnalyticsSummary, type ContactInboxItem, type ContentComment, type ContentRevision, type SiteSettings, type TeamMember, type TeamRole } from './api';
-import type { Category, Collection, ContentItem, ContentType, CreatorProfile, HomePayload, MediaAsset } from './types';
+import type { Category, Collection, ContentItem, ContentType, CreatorProfile, HomePayload, MediaAsset, Tag } from './types';
 
 const fallbackProfile: CreatorProfile = {
   display_name: 'Your name', headline: 'A home for ideas worth keeping.',
@@ -232,6 +232,7 @@ function DiscoverPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState<ContentItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
   const [nextUrl, setNextUrl] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -240,9 +241,13 @@ function DiscoverPage() {
   const search = searchParams.get('q') || '';
   const activeType = searchParams.get('type') || 'all';
   const activeCategory = searchParams.get('category') || 'all';
+  const activeTag = searchParams.get('tag') || 'all';
+  const featuredOnly = searchParams.get('featured') === 'true';
+  const fromDate = searchParams.get('from_date') || '';
+  const toDate = searchParams.get('to_date') || '';
   const sort = searchParams.get('sort') || 'newest';
   const deferredSearch = useDeferredValue(search);
-  useEffect(() => { api.categories().then(result => setCategories(result.results)).catch(() => setCategories([])); }, []);
+  useEffect(() => { api.categories().then(result => setCategories(result.results)).catch(() => setCategories([])); api.tags().then(result => setTags(result.results)).catch(() => setTags([])); }, []);
   useEffect(() => {
     let cancelled = false;
     setLoading(true); setError(''); setItems([]); setNextUrl(null);
@@ -250,6 +255,10 @@ function DiscoverPage() {
     if (deferredSearch.trim()) params.search = deferredSearch.trim();
     if (activeType !== 'all') params.content_type = activeType;
     if (activeCategory !== 'all') params.category = activeCategory;
+    if (activeTag !== 'all') params.tag = activeTag;
+    if (featuredOnly) params.featured = 'true';
+    if (fromDate) params.from_date = fromDate;
+    if (toDate) params.to_date = toDate;
     api.content(params).then(result => {
       if (cancelled) return;
       setItems(result.results); setTotal(result.count); setNextUrl(result.next);
@@ -257,7 +266,7 @@ function DiscoverPage() {
       .finally(() => { if (!cancelled) setLoading(false); });
     if (deferredSearch.trim()) void api.analytics('search', `/discover?q=${encodeURIComponent(deferredSearch.trim())}`).catch(() => {});
     return () => { cancelled = true; };
-  }, [deferredSearch, activeType, activeCategory, sort]);
+  }, [deferredSearch, activeType, activeCategory, activeTag, featuredOnly, fromDate, toDate, sort]);
   const updateParam = (key: string, value: string) => {
     const next = new URLSearchParams(searchParams);
     if (!value || value === 'all' || (key === 'sort' && value === 'newest')) next.delete(key); else next.set(key, value);
@@ -282,7 +291,9 @@ function DiscoverPage() {
       <label className="search-field"><Search size={19} /><span className="sr-only">Search published content</span><input value={search} onChange={e => updateParam('q', e.target.value)} placeholder="Search titles, topics, tags…" /><kbd>⌕</kbd></label>
       <label className="filter-field"><Filter size={17} /><span className="sr-only">Filter by category</span><select value={activeCategory} onChange={e => updateParam('category', e.target.value)}><option value="all">All categories</option>{categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select><ChevronDown size={15} /></label>
       <label className="filter-field"><span className="sr-only">Sort search results</span><select value={sort} onChange={e => updateParam('sort', e.target.value)}><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="title">Title A–Z</option></select><ChevronDown size={15} /></label>
+      <label className="filter-field"><span className="sr-only">Filter by tag</span><select value={activeTag} onChange={e => updateParam('tag', e.target.value)}><option value="all">All tags</option>{tags.map(tag => <option key={tag.id} value={tag.slug}>{tag.name}</option>)}</select><ChevronDown size={15} /></label>
     </div>
+    <div className="discover-extra-filters"><label className="check-field"><input type="checkbox" checked={featuredOnly} onChange={e => updateParam('featured', e.target.checked ? 'true' : '')} /> Featured only</label><label>From date<input type="date" value={fromDate} onChange={e => updateParam('from_date', e.target.value)} /></label><label>To date<input type="date" value={toDate} min={fromDate || undefined} onChange={e => updateParam('to_date', e.target.value)} /></label></div>
     <div className="filter-pills" role="group" aria-label="Filter by content type">{types.map(type => <button key={type} className={`filter-pill ${activeType === type ? 'selected' : ''}`} onClick={() => updateParam('type', type)} aria-pressed={activeType === type}>{type === 'all' ? 'Everything' : labelType(type)}</button>)}</div>
     <div className="results-line"><span>{loading ? 'Searching the archive…' : `${total} ${total === 1 ? 'result' : 'results'}`}</span><span>{sort === 'title' ? 'Sorted by title' : sort === 'oldest' ? 'Sorted oldest first' : 'Sorted newest first'}</span></div>
     {error && <InlineNotice text={error} />}
