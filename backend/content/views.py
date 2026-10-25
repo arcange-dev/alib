@@ -286,7 +286,25 @@ class ContactAPIView(APIView):
         try: validate_email(email)
         except DjangoValidationError: raise ValidationError({'email': 'Enter a valid email address.'})
         ContactMessage.objects.create(name=name, email=email, message=message)
-        return Response({'detail': 'Your message was saved for the creator.'}, status=status.HTTP_201_CREATED)
+        recipient = settings.ALIB_CONTACT_NOTIFICATION_EMAIL
+        notification_sent = False
+        if recipient:
+            try:
+                notification_sent = bool(send_mail(
+                    'New message received on ALIB',
+                    f'From: {name} <{email}>\n\n{message}',
+                    settings.DEFAULT_FROM_EMAIL,
+                    [recipient],
+                    fail_silently=False,
+                ))
+            except Exception:
+                notification_sent = False
+        detail = 'Your message was saved for the creator.'
+        if notification_sent:
+            detail += ' The creator was notified by email.'
+        elif recipient:
+            detail += ' The message is saved, but the email notification could not be sent.'
+        return Response({'detail': detail, 'notification_sent': notification_sent}, status=status.HTTP_201_CREATED)
 
 class VisitorSuggestionViewSet(viewsets.ModelViewSet):
     serializer_class = VisitorSuggestionSerializer
