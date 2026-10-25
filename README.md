@@ -77,4 +77,4 @@ See [deployment instructions](docs/deployment.md), [architecture](docs/architect
 
 ## UI/UX Pro Max
 
-The supplied skill's search tool was executed. The selected direction is a grid-led Swiss Modernism/editorial system with a restrained navy/blue foundation with bright yellow accents, Newsreader + Roboto typography, accessible SVG icons, visible focus states, and reduced motion. See `design-system/alib/` and `docs/uiux-pro-max/search-log.md`.
+The supplied skill's search tool was executed. The selected direction is a grid-led Swiss Modernism/editorial system with a restrained navy/blue foundation and bright yellow accents, Newsreader + Roboto typography, accessible SVG icons, visible focus states, and reduced motion. See `design-system/alib/` and `docs/uiux-pro-max/search-log.md`.
