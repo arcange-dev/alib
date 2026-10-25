@@ -15,6 +15,17 @@ def role_names(user):
     return set(user.groups.filter(name__in=KNOWN_ROLES).values_list('name', flat=True))
 
 
+def can_moderate(user):
+    if not user or not user.is_authenticated or not getattr(user, 'is_staff', False):
+        return False
+    if user.is_superuser:
+        return True
+    roles = role_names(user)
+    if roles:
+        return bool(roles.intersection({ADMIN_GROUP, MODERATOR_GROUP}))
+    return True
+
+
 def can_manage_content(user):
     if not user or not user.is_authenticated or not getattr(user, 'is_staff', False):
         return False
@@ -40,10 +51,7 @@ class IsALIBEditor(BasePermission):
 
 class IsALIBModerator(BasePermission):
     def has_permission(self, request, view):
-        roles = role_names(request.user)
-        if roles:
-            return bool(roles.intersection({ADMIN_GROUP, MODERATOR_GROUP}))
-        return bool(request.user and request.user.is_authenticated and request.user.is_staff)
+        return can_moderate(request.user)
 
 
 class IsALIBStaff(BasePermission):
