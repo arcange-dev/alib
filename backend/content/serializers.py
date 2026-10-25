@@ -102,7 +102,9 @@ class ContentRevisionSerializer(serializers.ModelSerializer):
 
 
 class ContentCommentSerializer(serializers.ModelSerializer):
+    item_id = serializers.PrimaryKeyRelatedField(source='item', queryset=ContentItem.objects.all(), write_only=True)
+    email = serializers.EmailField(write_only=True)
     class Meta:
         model = ContentComment
-        fields = ['id', 'name', 'body', 'status', 'created_at']
+        fields = ['id', 'item_id', 'name', 'email', 'body', 'status', 'created_at']
         read_only_fields = ['id', 'status', 'created_at']
