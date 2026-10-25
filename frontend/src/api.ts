@@ -31,6 +31,9 @@ export const api = {
   analytics: (event_type: 'page_view' | 'outbound_click' | 'search', path: string, item_id?: number) => request<{ detail: string }>('/analytics/event/', { method: 'POST', body: JSON.stringify({ event_type, path, referrer: document.referrer, item_id }) }),
   adminAnalytics: () => request<AnalyticsSummary>('/admin/analytics/'),
   contactInbox: () => request<ContactInboxItem[]>('/admin/contact/'),
+  team: () => request<TeamMember[]>('/admin/team/'),
+  inviteTeamMember: (payload: { username: string; email: string; role: TeamRole }) => request<{ detail: string; member: TeamMember }>('/admin/team/', { method: 'POST', body: JSON.stringify(payload) }),
+  updateTeamMember: (id: number, payload: { role?: TeamRole; is_active?: boolean }) => request<TeamMember>(`/admin/team/${id}/`, { method: 'PATCH', body: JSON.stringify(payload) }),
   saveCollection: (payload: Partial<Collection> & { item_ids?: number[] }, id?: number) => request<Collection>(id ? `/collections/${id}/` : '/collections/', { method: id ? 'PATCH' : 'POST', body: JSON.stringify(payload) }),
   adminSuggestions: () => request<PageResult<{ id: number; title: string; url: string; reason: string; status: string; created_at: string }>>('/suggestions/?page_size=100'),
   reviewSuggestion: (id: number, status: 'pending' | 'approved' | 'rejected') => request<{ id: number; status: string }>(`/suggestions/${id}/review/`, { method: 'POST', body: JSON.stringify({ status }) }),
@@ -76,7 +79,9 @@ export const api = {
   signedMediaUrl: (id: number) => request<{ url: string; expires_in: number }>(`/media/${id}/signed-url/`),
 };
 
-export interface AdminUser { id: number; username: string; email: string; is_staff: boolean; }
+export type TeamRole = 'administrator' | 'editor' | 'moderator' | 'support';
+export interface AdminUser { id: number; username: string; email: string; is_staff: boolean; role?: TeamRole; }
+export interface TeamMember { id: number; username: string; email: string; is_active: boolean; is_superuser: boolean; role: TeamRole | 'none'; last_login: string | null; }
 export interface AdminStats { published: number; drafts: number; scheduled: number; assets: number; suggestions_pending: number; }
 
 export interface SiteSettings { site_title: string; logo_url: string; favicon_url: string; seo_description: string; homepage_sections: string[]; theme_preferences: Record<string, string>; updated_at?: string; }
