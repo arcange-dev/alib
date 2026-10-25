@@ -1,9 +1,9 @@
 import { useDeferredValue, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, NavLink, Route, Routes, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import {
-  ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, Check, ChevronDown, CircleHelp, Clock3, Command,
-  Compass, ExternalLink, FileText, Filter, FolderOpen, Globe2, Heart, Layers3, Link2, LockKeyhole,
-  LogOut, Mail, Menu, Moon, PenLine, Plus, Search, ShieldCheck, Sparkles, Sun, Trash2, Upload, Video, X,
+  ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, Bookmark, Check, ChevronDown, CircleHelp, Clock3, Command,
+  Compass, ExternalLink, FileText, Filter, FolderOpen, Globe2, Heart, History, Inbox, Layers3, Link2, LockKeyhole,
+  LogOut, Mail, Menu, MessageCircle, Moon, PenLine, Plus, Search, Share2, ShieldCheck, Sparkles, Sun, ThumbsUp, Trash2, Upload, Video, X, BarChart3, Settings2,
 } from 'lucide-react';
 import { api, type AdminStats, type AdminUser } from './api';
 import type { Category, Collection, ContentItem, ContentType, CreatorProfile, HomePayload, MediaAsset } from './types';
@@ -26,10 +26,23 @@ const navItems = [
 function App() {
   const [dark, setDark] = useState(() => localStorage.getItem('alib-theme') === 'dark');
   const [mobileNav, setMobileNav] = useState(false);
+  const location = useLocation();
   useEffect(() => {
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
     localStorage.setItem('alib-theme', dark ? 'dark' : 'light');
   }, [dark]);
+  useEffect(() => {
+    const labels: Record<string, string> = { '/': 'Digital Home', '/discover': 'Discover', '/posts': 'Writing', '/favorites': 'Reading List', '/projects': 'Projects', '/resources': 'Resources', '/collections': 'Collections', '/about': 'About', '/contact': 'Contact', '/suggest': 'Recommend', '/admin': 'Creator Studio' };
+    document.title = `${labels[location.pathname] || 'Explore'} | ALIB`;
+    void api.analytics('page_view', location.pathname).catch(() => {});
+    api.settings().then(site => {
+      const description = document.querySelector('meta[name="description"]');
+      if (description && site.seo_description) description.setAttribute('content', site.seo_description);
+      const icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+      if (icon && site.favicon_url) icon.href = site.favicon_url;
+      if (location.pathname === '/' && site.site_title) document.title = site.site_title;
+    }).catch(() => {});
+  }, [location.pathname]);
   useEffect(() => setMobileNav(false), []);
   return <div className="app-shell">
     <a className="skip-link" href="#main-content">Skip to content</a>
@@ -43,7 +56,7 @@ function App() {
         <Route path="/posts" element={<LibraryPage title="Writing" description="Notes, essays, and longer ideas." types={['article', 'note']} />} />
         <Route path="/posts/:slug" element={<ContentDetailPage />} />
         <Route path="/content/:slug" element={<ContentDetailPage />} />
-        <Route path="/favorites" element={<LibraryPage title="Favorites" description="Useful corners of the internet, saved with a reason." types={['link']} />} />
+        <Route path="/favorites" element={<FavoritesPage />} />
         <Route path="/collections" element={<CollectionsPage />} />
         <Route path="/collections/:slug" element={<CollectionDetailPage />} />
         <Route path="/projects" element={<LibraryPage title="Projects" description="Things being built, explored, or kept in motion." types={['project']} />} />
@@ -52,6 +65,7 @@ function App() {
         <Route path="/contact" element={<ContactPage />} />
         <Route path="/suggest" element={<SuggestPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/admin/*" element={<AdminPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
@@ -83,9 +97,23 @@ function SiteFooter() {
   return <footer className="site-footer"><div className="footer-inner">
     <Link to="/" className="brand footer-brand"><span className="brand-mark">A<span>.</span></span><span className="brand-word">ALIB</span></Link>
     <p>A small home for a growing digital world.</p>
-    <div className="footer-links"><Link to="/about">About</Link><Link to="/contact">Contact</Link><Link to="/suggest">Recommend</Link><Link to="/privacy">Privacy</Link><Link to="/admin">Creator Studio <ArrowUpRight size={13} /></Link></div>
+    <div className="footer-links"><Link to="/about">About</Link><Link to="/contact">Contact</Link><Link to="/suggest">Recommend</Link><Link to="/privacy">Privacy</Link><a href="/feed.xml">RSS feed <ArrowUpRight size={13} /></a><Link to="/admin">Creator Studio <ArrowUpRight size={13} /></Link></div>
+    <NewsletterSignup />
     <span className="footer-year">© {new Date().getFullYear()} ALIB</span>
   </div></footer>;
+}
+
+function NewsletterSignup() {
+  const [email, setEmail] = useState('');
+  const [status, setStatus] = useState('');
+  const [busy, setBusy] = useState(false);
+  async function submit(e: FormEvent) {
+    e.preventDefault(); setBusy(true); setStatus('');
+    try { const result = await api.newsletterSubscribe(email); setStatus(result.detail); setEmail(''); }
+    catch (e) { setStatus(e instanceof Error ? e.message : 'Subscription could not be submitted.'); }
+    finally { setBusy(false); }
+  }
+  return <form className="newsletter-signup" onSubmit={submit}><label htmlFor="newsletter-email">Occasional notes from the archive</label><div><input id="newsletter-email" type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="Your email address" autoComplete="email" /><button className="button button-primary button-small" disabled={busy}>{busy ? 'Sending…' : 'Subscribe'}</button></div>{status && <p role="status">{status}</p>}</form>;
 }
 
 function useHome() {
@@ -176,6 +204,7 @@ function ContentCard({ item, index }: { item: ContentItem; index: number }) {
       {cover ? <img src={cover} alt="" loading="lazy" /> : <DefaultCover type={item.content_type} title={item.title} />}
       <span className="card-type">{labelType(item.content_type)}</span><span className="card-open"><ArrowUpRight size={18} /></span>
     </Link>
+    <BookmarkButton itemId={item.id} compact />
     <div className="card-content"><div className="card-meta"><span>{item.category?.name || labelType(item.content_type)}</span><span className="meta-separator">/</span><span>{formatDate(item.published_at || item.created_at)}</span></div>
       <h3><Link to={item.content_type === 'article' || item.content_type === 'note' ? `/posts/${item.slug}` : item.content_type === 'project' ? `/projects/${item.slug}` : `/content/${item.slug}`}>{item.title}</Link></h3>
       <p>{item.summary || 'Open this item to explore more.'}</p>
@@ -216,6 +245,44 @@ function DiscoverPage() {
     {!loading && filtered.length > 0 && <ContentGrid items={filtered} compact />}
     {!loading && !filtered.length && <div className="empty-state"><div className="empty-icon"><Search size={24} /></div><h2>{error ? 'Your archive is waiting to connect.' : 'Nothing here by that name. Yet.'}</h2><p>{error ? 'Run the Django API and connect Supabase PostgreSQL to show published items.' : 'Try another search or clear the filters. Newly published content will appear here.'}</p><button className="button button-outline" onClick={() => setSearchParams({})}>Clear all filters</button></div>}
   </div>;
+}
+
+const BOOKMARKS_KEY = 'alib-bookmarks';
+
+function readBookmarks(): number[] {
+  try {
+    const saved = JSON.parse(localStorage.getItem(BOOKMARKS_KEY) || '[]');
+    return Array.isArray(saved) ? saved.filter((id): id is number => Number.isInteger(id)) : [];
+  } catch { return []; }
+}
+function writeBookmarks(ids: number[]) {
+  try { localStorage.setItem(BOOKMARKS_KEY, JSON.stringify([...new Set(ids)])); window.dispatchEvent(new Event('alib-bookmarks-changed')); } catch { /* Storage may be disabled; the page remains usable. */ }
+}
+function BookmarkButton({ itemId, compact = false }: { itemId: number; compact?: boolean }) {
+  const [saved, setSaved] = useState(() => readBookmarks().includes(itemId));
+  useEffect(() => {
+    const sync = () => setSaved(readBookmarks().includes(itemId));
+    window.addEventListener('alib-bookmarks-changed', sync);
+    window.addEventListener('storage', sync);
+    return () => { window.removeEventListener('alib-bookmarks-changed', sync); window.removeEventListener('storage', sync); };
+  }, [itemId]);
+  return <button type="button" className={`bookmark-button ${compact ? 'bookmark-compact' : ''} ${saved ? 'is-saved' : ''}`} onClick={() => { const ids = readBookmarks(); writeBookmarks(saved ? ids.filter(id => id !== itemId) : [...ids, itemId]); setSaved(!saved); }} aria-pressed={saved} aria-label={saved ? 'Remove from reading list' : 'Save to reading list'} title={saved ? 'Remove from reading list' : 'Save to reading list'}>{saved ? <Bookmark size={15} fill="currentColor" /> : <Bookmark size={15} />}{compact ? null : <span>{saved ? 'Saved' : 'Save for later'}</span>}</button>;
+}
+
+function FavoritesPage() {
+  const [allItems, setAllItems] = useState<ContentItem[]>([]);
+  const [savedIds, setSavedIds] = useState<number[]>(() => readBookmarks());
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    const sync = () => setSavedIds(readBookmarks());
+    window.addEventListener('alib-bookmarks-changed', sync);
+    window.addEventListener('storage', sync);
+    api.content({ page_size: '100' }).then(data => setAllItems(data.results)).catch(e => setError(e instanceof Error ? e.message : 'Unable to load the reading list.')).finally(() => setLoading(false));
+    return () => { window.removeEventListener('alib-bookmarks-changed', sync); window.removeEventListener('storage', sync); };
+  }, []);
+  const saved = allItems.filter(item => savedIds.includes(item.id));
+  return <div className="page-wrap section-wrap page-enter"><div className="page-hero page-hero-small"><div className="eyebrow">YOUR PRIVATE READING LIST <span className="eyebrow-rule" /></div><h1>Keep close<span className="title-period">.</span></h1><p>Items saved in this browser for another time. This list stays on this device and does not require an account.</p></div>{loading ? <LoadingRows /> : error ? <EmptyState title="Your reading list could not load." body={error} /> : saved.length ? <ContentGrid items={saved} compact /> : <EmptyState title="Save something for later." body="Use the bookmark icon on any public item and it will appear here on this browser." action={<Link className="button button-primary" to="/discover">Explore the archive <ArrowRight size={15} /></Link>} />}</div>;
 }
 
 function LibraryPage({ title, description, types }: { title: string; description: string; types: ContentType[] }) {
