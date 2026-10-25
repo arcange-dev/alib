@@ -89,7 +89,7 @@ class CompletionOperationsTests(TestCase):
 
     def test_audit_and_newsletter_export_are_owner_only(self):
         self.assertEqual(self.client.get('/api/v1/admin/audit/').status_code, 403)
-        self.assertEqual(self.client.get('/api/v1/admin/newsletter/?format=csv').status_code, 403)
+        self.assertEqual(self.client.get('/api/v1/admin/newsletter/?export=csv').status_code, 403)
         self.client.force_authenticate(user=self._superuser())
         self.assertEqual(self.client.get('/api/v1/admin/audit/').status_code, 200)
         export = self.client.get('/api/v1/admin/newsletter/?format=csv')
