@@ -76,7 +76,30 @@ export const api = {
   deleteContent: (id: number) => request<void>(`/content/${id}/`, { method: 'DELETE' }),
   media: () => request<PageResult<MediaAsset>>('/admin/media/'),
   updateMedia: (id: number, payload: { title?: string; description?: string; alt_text?: string; visibility?: string; downloadable?: boolean }) => request<MediaAsset>(`/admin/media/${id}/`, { method: 'PATCH', body: JSON.stringify(payload) }),
-  uploadMedia: (form: FormData) => request<MediaAsset>('/admin/media/upload/', { method: 'POST', body: form }),
+  uploadMedia: async (form: FormData, onProgress?: (progress: number) => void): Promise<MediaAsset> => {
+    if (!csrfToken) await api.csrf();
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${API_ROOT}/admin/media/upload/`);
+      xhr.withCredentials = true;
+      xhr.setRequestHeader('X-CSRFToken', csrfToken);
+      xhr.setRequestHeader('Accept', 'application/json');
+      xhr.upload.onprogress = event => {
+        if (event.lengthComputable && onProgress) onProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)));
+      };
+      xhr.onerror = () => reject(new Error('Upload connection failed.'));
+      xhr.onabort = () => reject(new Error('Upload cancelled.'));
+      xhr.onload = () => {
+        const payload = xhr.responseText ? safeJson(xhr.responseText) : null;
+        if (xhr.status >= 200 && xhr.status < 300) resolve(payload as MediaAsset);
+        else {
+          const detail = payload?.detail || payload?.error || `Upload failed (${xhr.status})`;
+          reject(new Error(typeof detail === 'string' ? detail : JSON.stringify(detail)));
+        }
+      };
+      xhr.send(form);
+    });
+  },
   signedMediaUrl: (id: number) => request<{ url: string; expires_in: number }>(`/media/${id}/signed-url/`),
 };
 
