@@ -22,5 +22,5 @@ export interface HomePayload {
 export interface PageResult<T> { count: number; next: string | null; previous: string | null; results: T[]; }
 export interface MediaAsset {
   id: number; original_filename: string; title: string; description: string; mime_type: string;
-  file_size: number; visibility: Visibility; downloadable: boolean; created_at: string;
+  file_size: number; alt_text: string; visibility: Visibility; downloadable: boolean; created_at: string;
 }
