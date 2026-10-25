@@ -106,6 +106,23 @@ The site/database can deploy without Storage. To enable uploads later:
 - **CSRF sign-in error:** use the exact HTTPS Render URL consistently and redeploy after environment changes.
 - **Upload says storage is not configured:** add the optional Storage environment variables and create the private bucket.
 
+## Email delivery (needed for invitations, reset links and newsletter)
+
+The application uses Django's email backend. In Render → ALIB → Environment, configure your provider's values:
+
+| Environment variable | Required value |
+| --- | --- |
+| EMAIL_HOST | Provider SMTP host |
+| EMAIL_PORT | Provider port (usually 587 with STARTTLS) |
+| EMAIL_HOST_USER | SMTP username |
+| EMAIL_HOST_PASSWORD | SMTP password or app token |
+| EMAIL_USE_TLS | true for STARTTLS; use false if the provider requires SSL instead |
+| EMAIL_USE_SSL | true only for implicit TLS; do not enable together with EMAIL_USE_TLS |
+| DEFAULT_FROM_EMAIL | Verified sender address |
+| ALIB_CONTACT_NOTIFICATION_EMAIL | Optional private inbox for new contact-message notices |
+
+Keep all mail credentials server-side. After saving, redeploy and test with mailboxes you control. If email is not configured or the provider rejects delivery, the app reports the problem rather than claiming that a message was sent. A newsletter subscription remains inactive until its confirmation link is used.
+
 ## Scheduled publishing
 
 Scheduled items are saved with a `scheduled_for` date/time. The backend includes an idempotent `python manage.py publish_scheduled` command; an event only publishes when that command runs. To automate publishing without a continuously running web worker, the repository includes `.github/workflows/publish-scheduled.yml`, which triggers every 15 minutes and can also be run manually.
