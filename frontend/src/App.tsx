@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { Fragment, useDeferredValue, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, NavLink, Route, Routes, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowDown, ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, Bookmark, Check, ChevronDown, CircleHelp, Clock3, Command,
@@ -133,7 +133,12 @@ function HomePage() {
   const profile = data?.profile || fallbackProfile;
   const latest = data?.latest || [];
   const featured = data?.featured || [];
-  const showSection = (name: string) => homeSections.includes(name);
+  const sectionMap: Record<string, ReactNode> = {
+    featured: <section className="section-wrap section-block"><SectionHeading kicker="THE HIGHLIGHTS / 02" title="Worth a closer look" linkTo="/discover" linkLabel="Explore everything" />{error && <InlineNotice text="The API is not connected yet. The site is ready for your first published items; check the setup guide to connect the database." />}{featured.length ? <ContentGrid items={featured.slice(0, 3)} /> : <EmptyFeature />}</section>,
+    latest: <section className="section-wrap section-block latest-block"><SectionHeading kicker="RECENTLY ADDED / 03" title="Fresh from the archive" linkTo="/discover" linkLabel="Browse the archive" />{latest.length ? <ContentGrid items={latest.slice(0, 4)} compact /> : <div className="empty-list"><div className="empty-icon"><FolderOpen size={23} /></div><div><h3>The first page is still unwritten.</h3><p>Publish an article, save a useful link, or add a project in Creator Studio. It will appear here automatically.</p></div><Link to="/admin" className="button button-outline">Open Creator Studio <ArrowUpRight size={15} /></Link></div>}</section>,
+    categories: Boolean(data?.categories.length) ? <section className="section-wrap section-block"><SectionHeading kicker="BROWSE BY TOPIC / 04" title="A few ways to explore" linkTo="/discover" linkLabel="All topics" /><div className="homepage-category-grid">{data?.categories.map(category => <Link className="homepage-category" key={category.id} to={`/discover?category=${category.id}`}><span>{category.name}</span><ArrowUpRight size={16} /></Link>)}</div></section> : null,
+    collections: Boolean(data?.collections.length) ? <section className="section-wrap section-block"><SectionHeading kicker="CURATED BY HAND / 05" title="Explore by collection" linkTo="/collections" linkLabel="All collections" /><div className="collection-grid">{data?.collections.slice(0, 3).map((collection, index) => <Link key={collection.id} className={`collection-card collection-card-${index % 3}`} to={`/collections/${collection.slug}`}>{collection.cover_image_url ? <img src={collection.cover_image_url} alt="" loading="lazy" /> : <div className="collection-graphic"><span>0{index + 1}</span><Layers3 size={40} strokeWidth={1.2} /></div>}<span className="section-kicker">COLLECTION / {String(index + 1).padStart(2, '0')}</span><h2>{collection.title}</h2><p>{collection.description}</p><span className="collection-link">Open collection <ArrowUpRight size={15} /></span></Link>)}</div></section> : null,
+  };
   return <>
     <section className="hero section-wrap">
       <div className="hero-copy">
@@ -159,20 +164,7 @@ function HomePage() {
       <div className="section-kicker">THE IDEA / 001</div><div className="intro-band-copy"><h2>Not just a portfolio.<br /><em>A place to wander.</em></h2><p>Some things deserve more than a bookmark. ALIB brings together the work being made, the ideas being explored, and the resources worth passing along — all in one thoughtful, searchable place.</p><Link className="text-link" to="/about">Get to know the space <ArrowUpRight size={16} /></Link></div>
     </section>
 
-    {showSection('featured') && <section className="section-wrap section-block">
-      <SectionHeading kicker="THE HIGHLIGHTS / 02" title="Worth a closer look" linkTo="/discover" linkLabel="Explore everything" />
-      {error && <InlineNotice text="The API is not connected yet. The site is ready for your first published items; check the setup guide to connect the database." />}
-      {featured.length ? <ContentGrid items={featured.slice(0, 3)} /> : <EmptyFeature />}
-    </section>}
-
-    {showSection('latest') && <section className="section-wrap section-block latest-block">
-      <SectionHeading kicker="RECENTLY ADDED / 03" title="Fresh from the archive" linkTo="/discover" linkLabel="Browse the archive" />
-      {latest.length ? <ContentGrid items={latest.slice(0, 4)} compact /> : <div className="empty-list"><div className="empty-icon"><FolderOpen size={23} /></div><div><h3>The first page is still unwritten.</h3><p>Publish an article, save a useful link, or add a project in Creator Studio. It will appear here automatically.</p></div><Link to="/admin" className="button button-outline">Open Creator Studio <ArrowUpRight size={15} /></Link></div>}
-    </section>}
-
-    {showSection('categories') && Boolean(data?.categories.length) && <section className="section-wrap section-block"><SectionHeading kicker="BROWSE BY TOPIC / 04" title="A few ways to explore" linkTo="/discover" linkLabel="All topics" /><div className="homepage-category-grid">{data?.categories.map(category => <Link className="homepage-category" key={category.id} to={`/discover?category=${category.id}`}><span>{category.name}</span><ArrowUpRight size={16} /></Link>)}</div></section>}
-
-    {showSection('collections') && Boolean(data?.collections.length) && <section className="section-wrap section-block"><SectionHeading kicker="CURATED BY HAND / 05" title="Explore by collection" linkTo="/collections" linkLabel="All collections" /><div className="collection-grid">{data?.collections.slice(0, 3).map((collection, index) => <Link key={collection.id} className={`collection-card collection-card-${index % 3}`} to={`/collections/${collection.slug}`}>{collection.cover_image_url ? <img src={collection.cover_image_url} alt="" loading="lazy" /> : <div className="collection-graphic"><span>0{index + 1}</span><Layers3 size={40} strokeWidth={1.2} /></div>}<span className="section-kicker">COLLECTION / {String(index + 1).padStart(2, '0')}</span><h2>{collection.title}</h2><p>{collection.description}</p><span className="collection-link">Open collection <ArrowUpRight size={15} /></span></Link>)}</div></section>}
+    {homeSections.filter(name => name in sectionMap && sectionMap[name]).map(name => <Fragment key={name}>{sectionMap[name]}</Fragment>)}
 
     <section className="section-wrap section-block pathways-block">
       <SectionHeading kicker="FIND YOUR WAY / 04" title="Different paths in." />
