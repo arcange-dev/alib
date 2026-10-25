@@ -113,7 +113,7 @@ function HomePage() {
         <div className="art-corner art-corner-top">ALIB / DIGITAL HOME</div>
         <div className="art-orbit orbit-one" /><div className="art-orbit orbit-two" />
         <div className="art-disc"><span>A</span><small>ARCHIVE<br />OF IDEAS</small></div>
-        <div className="art-note note-top"><span className="note-dot pink" /> Curiosity, collected</div>
+        <div className="art-note note-top"><span className="note-dot yellow" /> Curiosity, collected</div>
         <div className="art-note note-bottom"><span className="note-line" /> Notes · Links · Projects</div>
         <div className="art-index">FIG. 001</div>
       </div>
