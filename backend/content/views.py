@@ -23,7 +23,7 @@ from rest_framework.authentication import SessionAuthentication
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.parsers import FormParser, MultiPartParser
-from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle, ScopedRateThrottle
 from rest_framework.views import APIView
@@ -155,7 +155,7 @@ class CollectionViewSet(viewsets.ModelViewSet):
     ordering_fields = ['display_order', 'created_at', 'updated_at', 'title']
     def get_queryset(self):
         queryset = Collection.objects.prefetch_related('items')
-        if not (self.request.user.is_authenticated and self.request.user.is_staff):
+        if not can_manage_content(self.request.user):
             queryset = queryset.filter(visibility='public')
         return queryset
 
@@ -197,7 +197,7 @@ class ProfileAPIView(APIView):
         return Response({'display_name': 'Your name', 'headline': 'A home for ideas worth keeping.', 'biography': '', 'avatar_url': '', 'location': '', 'social_links': {}})
 
 class AdminProfileAPIView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsALIBEditor]
     def put(self, request):
         profile = CreatorProfile.objects.order_by('id').first()
         serializer = CreatorProfileSerializer(profile, data=request.data, partial=True) if profile else CreatorProfileSerializer(data=request.data)
@@ -278,7 +278,7 @@ class VisitorSuggestionViewSet(viewsets.ModelViewSet):
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'suggestions'
     def get_queryset(self):
-        if not (self.request.user.is_authenticated and self.request.user.is_staff):
+        if not can_moderate(self.request.user):
             return VisitorSuggestion.objects.none()
         return VisitorSuggestion.objects.all()
     def get_permissions(self):
