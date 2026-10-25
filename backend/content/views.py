@@ -5,11 +5,14 @@ from pathlib import PurePath
 from uuid import uuid4
 from django.conf import settings
 from django.contrib.auth import authenticate, login, logout, get_user_model
+from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
 from django.db import IntegrityError
 from django.db.models import Count, Max
 from django.http import JsonResponse
 from django.utils import timezone
+from django.utils.encoding import force_bytes, force_str
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from rest_framework import status, viewsets
@@ -313,6 +316,89 @@ class MediaUploadAPIView(APIView):
         AuditEvent.objects.create(actor=request.user, action='media.uploaded', object_type='MediaAsset', object_id=str(asset.pk), details={'mime_type': mime_type, 'file_size': asset.file_size})
         return Response(MediaAssetSerializer(asset).data, status=status.HTTP_201_CREATED)
 
+
+
+
+
+
+class ContentReactionAPIView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'comments'
+    def get(self, request, item_id):
+        item = ContentItem.objects.filter(pk=item_id, status='published', visibility='public', published_at__lte=timezone.now()).first()
+        if not item:
+            return Response({'detail': 'Content not found.'}, status=status.HTTP_404_NOT_FOUND)
+        counts = {key: item.reactions.filter(reaction=key).count() for key in ('like', 'love', 'useful')}
+        return Response({'counts': counts})
+
+    def post(self, request, item_id):
+        item = ContentItem.objects.filter(pk=item_id, status='published', visibility='public', published_at__lte=timezone.now()).first()
+        if not item:
+            return Response({'detail': 'Content not found.'}, status=status.HTTP_404_NOT_FOUND)
+        reaction = str(request.data.get('reaction', '')).strip()
+        if reaction not in {'like', 'love', 'useful'}:
+            raise ValidationError({'reaction': 'Choose like, love, or useful.'})
+        ip = request.META.get('REMOTE_ADDR', '')
+        visitor_hash = hashlib.sha256(f'{ip}:{settings.SECRET_KEY}'.encode()).hexdigest() if ip else secrets.token_hex(32)
+        _, created = ContentReaction.objects.get_or_create(item=item, reaction=reaction, visitor_hash=visitor_hash)
+        counts = {key: item.reactions.filter(reaction=key).count() for key in ('like', 'love', 'useful')}
+        return Response({'counts': counts, 'recorded': created}, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+
+class PasswordResetRequestAPIView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'login'
+    def post(self, request):
+        email = str(request.data.get('email', '')).strip().lower()
+        if not email:
+            raise ValidationError({'email': 'Enter the email address used by your staff account.'})
+        User = get_user_model()
+        users = User.objects.filter(email__iexact=email, is_active=True, is_staff=True).exclude(email='')
+        for user in users:
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
+            token = default_token_generator.make_token(user)
+            reset_url = request.build_absolute_uri(f'/reset-password?uid={uid}&token={token}')
+            try:
+                sent = send_mail('Reset your ALIB Creator Studio password', f'Reset your password using this link: {reset_url}\n\nIf you did not request a reset, ignore this email.', settings.DEFAULT_FROM_EMAIL, [user.email], fail_silently=False)
+            except Exception:
+                sent = 0
+            if not sent:
+                return Response({'detail': 'Password reset email could not be sent. Configure the server email provider, then try again.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        return Response({'detail': 'If an active staff account uses that address, a password reset link has been sent.'}, status=status.HTTP_202_ACCEPTED)
+
+
+class PasswordResetConfirmAPIView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'login'
+    def post(self, request):
+        uid = str(request.data.get('uid', '')).strip()
+        token = str(request.data.get('token', '')).strip()
+        password = request.data.get('password', '')
+        if not uid or not token or not isinstance(password, str):
+            raise ValidationError({'detail': 'The reset link or password is missing.'})
+        try:
+            user_id = force_str(urlsafe_base64_decode(uid))
+            user = get_user_model().objects.get(pk=user_id, is_active=True, is_staff=True)
+        except (ValueError, TypeError, OverflowError, get_user_model().DoesNotExist):
+            return Response({'detail': 'This password reset link is invalid or expired.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not default_token_generator.check_token(user, token):
+            return Response({'detail': 'This password reset link is invalid or expired.'}, status=status.HTTP_400_BAD_REQUEST)
+        from django.contrib.auth.password_validation import validate_password
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        try:
+            validate_password(password, user=user)
+        except DjangoValidationError as exc:
+            raise ValidationError({'password': list(exc.messages)})
+        user.set_password(password)
+        user.save(update_fields=['password'])
+        AuditEvent.objects.create(actor=user, action='auth.password_reset', object_type='User', object_id=str(user.pk))
+        return Response({'detail': 'Password updated. Return to Creator Studio and sign in.'})
 
 
 class PublicSiteSettingsAPIView(APIView):
