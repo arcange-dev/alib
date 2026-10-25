@@ -161,3 +161,25 @@ class CompletionOperationsTests(TestCase):
         passed_csrf = client.post('/api/v1/auth/2fa/verify-login/', payload, format='json', HTTP_X_CSRFTOKEN=csrf.data['csrfToken'])
         self.assertEqual(passed_csrf.status_code, 400)
         self.assertIn('challenge', passed_csrf.data['detail'].lower())
+
+    def test_site_settings_persist_owner_copy_and_copyright_template(self):
+        self.client.force_authenticate(user=self._superuser())
+        payload = {
+            'site_title': 'ALIB Digital Home',
+            'owner_name': 'Mukamyi Izere Arcange',
+            'copyright_text': 'Copyright © {year} {owner_name}. All rights reserved.',
+            'site_copy': {
+                'home.hero.intro': 'A fully editable site introduction.',
+                'contact.intro': 'A custom contact introduction.',
+                'custom.notice': 'A custom configured text entry.',
+            },
+        }
+        saved = self.client.put('/api/v1/admin/settings/', payload, format='json')
+        self.assertEqual(saved.status_code, 200, saved.data)
+        self.assertEqual(saved.data['owner_name'], 'Mukamyi Izere Arcange')
+        self.assertEqual(saved.data['site_copy']['custom.notice'], 'A custom configured text entry.')
+        self.assertEqual(SiteSettings.objects.get().copyright_text, payload['copyright_text'])
+        public = APIClient().get('/api/v1/settings/')
+        self.assertEqual(public.status_code, 200)
+        self.assertEqual(public.data['owner_name'], 'Mukamyi Izere Arcange')
+        self.assertEqual(public.data['site_copy']['home.hero.intro'], 'A fully editable site introduction.')

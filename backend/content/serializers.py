@@ -102,7 +102,7 @@ class VisitorSuggestionSerializer(serializers.ModelSerializer):
 class SiteSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = SiteSettings
-        fields = ['site_title', 'logo_url', 'favicon_url', 'seo_description', 'homepage_sections', 'theme_preferences', 'updated_at']
+        fields = ['site_title', 'logo_url', 'favicon_url', 'seo_description', 'homepage_sections', 'theme_preferences', 'owner_name', 'copyright_text', 'site_copy', 'updated_at']
         read_only_fields = ['updated_at']
 
 

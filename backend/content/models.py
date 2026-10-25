@@ -11,7 +11,7 @@ class TimestampedModel(models.Model):
         abstract = True
 
 class CreatorProfile(TimestampedModel):
-    display_name = models.CharField(max_length=120, default='Your name')
+    display_name = models.CharField(max_length=120, default='Mukamyi Izere Arcange')
     headline = models.CharField(max_length=240, default='A home for ideas worth keeping.')
     biography = models.TextField(blank=True, default='A personal space for work in progress, useful links, thoughtful notes, and the things worth returning to.')
     avatar_url = models.URLField(blank=True)
@@ -26,6 +26,9 @@ class SiteSettings(TimestampedModel):
     seo_description = models.CharField(max_length=300, blank=True)
     homepage_sections = models.JSONField(default=list, blank=True)
     theme_preferences = models.JSONField(default=dict, blank=True)
+    owner_name = models.CharField(max_length=160, default='Mukamyi Izere Arcange')
+    copyright_text = models.CharField(max_length=240, default='© {year} {owner_name}. All rights reserved.')
+    site_copy = models.JSONField(default=dict, blank=True)
     def __str__(self): return self.site_title
 
 def _unique_generated_slug(instance, value, max_length):
