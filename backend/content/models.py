@@ -28,6 +28,23 @@ class SiteSettings(TimestampedModel):
     theme_preferences = models.JSONField(default=dict, blank=True)
     def __str__(self): return self.site_title
 
+def _unique_generated_slug(instance, value, max_length):
+    """Generate a collision-free slug when a model derives it from a title/name."""
+    base = slugify(value)[:max_length]
+    if not base:
+        base = f"{instance._meta.model_name}-{uuid4().hex[:8]}"[:max_length]
+    queryset = instance.__class__.objects.all()
+    if instance.pk:
+        queryset = queryset.exclude(pk=instance.pk)
+    candidate = base
+    suffix = 2
+    while queryset.filter(slug=candidate).exists():
+        ending = f"-{suffix}"
+        candidate = f"{base[:max_length - len(ending)]}{ending}"
+        suffix += 1
+    return candidate
+
+
 class Category(TimestampedModel):
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(max_length=120, unique=True)
@@ -36,7 +53,7 @@ class Category(TimestampedModel):
     class Meta:
         ordering = ['display_order', 'name']
     def save(self, *args, **kwargs):
-        if not self.slug: self.slug = slugify(self.name)
+        if not self.slug: self.slug = _unique_generated_slug(self, self.name, 120)
         super().save(*args, **kwargs)
     def __str__(self): return self.name
 
@@ -44,7 +61,7 @@ class Tag(TimestampedModel):
     name = models.CharField(max_length=70, unique=True)
     slug = models.SlugField(max_length=80, unique=True)
     def save(self, *args, **kwargs):
-        if not self.slug: self.slug = slugify(self.name)
+        if not self.slug: self.slug = _unique_generated_slug(self, self.name, 80)
         super().save(*args, **kwargs)
     def __str__(self): return self.name
 
@@ -59,7 +76,7 @@ class Collection(TimestampedModel):
     class Meta:
         ordering = ['display_order', '-updated_at']
     def save(self, *args, **kwargs):
-        if not self.slug: self.slug = slugify(self.title)
+        if not self.slug: self.slug = _unique_generated_slug(self, self.title, 200)
         super().save(*args, **kwargs)
     def __str__(self): return self.title
 
@@ -90,7 +107,7 @@ class ContentItem(TimestampedModel):
     metadata = models.JSONField(default=dict, blank=True)
     class Meta:
         ordering = ['-published_at', '-created_at']
-        indexes = [models.Index(fields=['status', 'visibility', '-published_at']), models.Index(fields=['content_type', 'status'])]
+        indexes = [models.Index(fields=['status', 'visibility', '-published_at'], name='alib_pub_state_idx'), models.Index(fields=['content_type', 'status'], name='alib_type_state_idx')]
     def save(self, *args, **kwargs):
         if not self.slug:
             base = slugify(self.title)[:230] or f'item-{uuid4().hex[:8]}'
@@ -142,6 +159,7 @@ class ContactMessage(TimestampedModel):
     email = models.EmailField()
     message = models.TextField(max_length=5000)
     reviewed = models.BooleanField(default=False, db_index=True)
+    archived = models.BooleanField(default=False, db_index=True)
     def __str__(self): return f'{self.name} — {self.created_at:%Y-%m-%d}'
 
 class ContentRevision(models.Model):
@@ -203,6 +221,18 @@ class ContentComment(models.Model):
     moderated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
     class Meta:
         ordering = ['-created_at']
+
+
+class StaffTwoFactor(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='alib_two_factor')
+    secret_encrypted = models.TextField(blank=True)
+    enabled = models.BooleanField(default=False, db_index=True)
+    last_verified_step = models.BigIntegerField(default=-1)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'Two-factor for user {self.user_id}'
 
 
 class AuditEvent(models.Model):

@@ -1,3 +1,5 @@
+from django.db import transaction
+from django.utils import timezone
 from rest_framework import serializers
 from .models import Category, Collection, CollectionItem, ContentComment, ContentItem, ContentRevision, CreatorProfile, MediaAsset, SiteSettings, Tag, VisitorSuggestion
 
@@ -5,11 +7,13 @@ class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = ['id', 'name', 'slug', 'description', 'display_order']
+        extra_kwargs = {'slug': {'required': False, 'allow_blank': True}}
 
 class TagSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
         fields = ['id', 'name', 'slug']
+        extra_kwargs = {'slug': {'required': False, 'allow_blank': True}}
 
 class ContentItemSerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)
@@ -52,19 +56,22 @@ class CollectionSerializer(serializers.ModelSerializer):
         model = Collection
         fields = ['id', 'title', 'slug', 'description', 'cover_image_url', 'visibility', 'display_order', 'item_count', 'current_item_ids', 'item_ids', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at', 'item_count']
+        extra_kwargs = {'slug': {'required': False, 'allow_blank': True}}
     def get_item_count(self, obj):
-        return obj.items.filter(status='published', visibility='public').count()
+        return obj.items.filter(status='published', visibility='public', published_at__lte=timezone.now()).count()
     def get_current_item_ids(self, obj):
         request = self.context.get('request')
         if request and request.user and request.user.is_authenticated and request.user.is_staff:
             return list(CollectionItem.objects.filter(collection=obj).order_by('display_order', 'id').values_list('item_id', flat=True))
         return []
+    @transaction.atomic
     def create(self, validated_data):
         items = validated_data.pop('items', [])
         collection = super().create(validated_data)
         for order, item in enumerate(items):
             CollectionItem.objects.get_or_create(collection=collection, item=item, defaults={'display_order': order})
         return collection
+    @transaction.atomic
     def update(self, instance, validated_data):
         items = validated_data.pop('items', None)
         collection = super().update(instance, validated_data)
