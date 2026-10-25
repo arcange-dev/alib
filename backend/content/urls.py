@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     AdminAnalyticsAPIView, AdminAuditEventAPIView, AdminNewsletterAPIView, AdminTeamAPIView, AdminTeamMemberAPIView, ContentReactionAPIView, AdminMediaViewSet, AdminProfileAPIView, AdminSiteSettingsAPIView, AdminStatsAPIView, AnalyticsEventAPIView, CategoryViewSet, CollectionViewSet,
     ContactAPIView, ContactInboxAPIView, ContentCommentViewSet, ContentItemViewSet, CsrfAPIView, CurrentUserAPIView, HomeAPIView, LoginAPIView,
-    LogoutAPIView, MediaSignedUrlAPIView, MediaUploadAPIView, NewsletterConfirmAPIView, NewsletterSubscribeAPIView, NewsletterUnsubscribeAPIView, PasswordResetConfirmAPIView, PasswordResetRequestAPIView, ScheduledPublishTriggerAPIView, ProfileAPIView, PublicSiteSettingsAPIView, TagViewSet,
+    LogoutAPIView, MediaSignedUrlAPIView, MediaUploadAPIView, NewsletterConfirmAPIView, NewsletterSubscribeAPIView, NewsletterUnsubscribeAPIView, PasswordResetConfirmAPIView, PasswordResetRequestAPIView, ScheduledPublishTriggerAPIView, ProfileAPIView, PublicSiteSettingsAPIView, StaffTwoFactorAPIView, TwoFactorLoginVerifyAPIView, TagViewSet,
     VisitorSuggestionViewSet,
 )
 
@@ -39,6 +39,8 @@ urlpatterns = [
     path('contact/', ContactAPIView.as_view(), name='contact'),
     path('auth/csrf/', CsrfAPIView.as_view(), name='csrf'),
     path('auth/login/', LoginAPIView.as_view(), name='login'),
+    path('auth/2fa/', StaffTwoFactorAPIView.as_view(), name='staff-two-factor'),
+    path('auth/2fa/verify-login/', TwoFactorLoginVerifyAPIView.as_view(), name='verify-two-factor-login'),
     path('auth/logout/', LogoutAPIView.as_view(), name='logout'),
     path('auth/me/', CurrentUserAPIView.as_view(), name='current-user'),
     path('auth/password-reset/', PasswordResetRequestAPIView.as_view(), name='password-reset-request'),
