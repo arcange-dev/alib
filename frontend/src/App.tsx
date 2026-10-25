@@ -767,6 +767,23 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
   const canManage = role === 'administrator' || role === 'editor';
   const canModerate = role === 'administrator' || role === 'moderator';
   const isAdmin = role === 'administrator';
+  const headerMeta: Record<string, { title: string; description: string }> = {
+    overview: { title: 'Overview', description: 'Your archive at a glance and quick actions.' },
+    security: { title: 'Account security', description: 'Manage your sign-in protection and authenticator.' },
+    content: { title: 'All content', description: 'Create, organize, preview, and publish your entries.' },
+    editor: { title: editId ? 'Edit content' : 'New content', description: 'Write an entry, save a draft, or publish it to your site.' },
+    media: { title: 'Media library', description: 'Manage uploads, descriptions, visibility, and downloads.' },
+    settings: { title: 'Site settings', description: 'Control website wording, branding, owner details, and copyright.' },
+    profile: { title: 'Creator profile', description: 'Edit the public creator name, biography, avatar, and social links.' },
+    collections: { title: 'Collections', description: 'Curate collections and keep their content in your chosen order.' },
+    inbox: { title: 'Contact inbox', description: 'Review incoming messages and manage archived conversations.' },
+    analytics: { title: 'Analytics', description: 'Review measured page views, searches, and outbound activity.' },
+    moderation: { title: 'Suggestions', description: 'Review visitor recommendations before they are accepted.' },
+    comments: { title: 'Comments', description: 'Moderate reader comments before they appear publicly.' },
+    team: { title: 'Team access', description: 'Invite staff and manage their roles and access.' },
+    audit: { title: 'Audit history', description: 'Review important owner, content, and moderation actions.' },
+    newsletter: { title: 'Newsletter', description: 'Review confirmed subscribers and export the subscriber list.' },
+  };
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const mediaInputRef = useRef<HTMLInputElement>(null);
   const [collectionCreateRequest, setCollectionCreateRequest] = useState(0);
@@ -869,7 +886,7 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
       {isAdmin && <button title="Newsletter" className={tab === 'newsletter' ? 'selected' : ''} onClick={() => setTab('newsletter')}><AtSign size={17} /> Newsletter</button>}
       <Link to="/" title="View public site" className="admin-menu-link"><Globe2 size={17} /> View public site <ArrowUpRight size={14} /></Link>
     </nav><div className="admin-sidebar-bottom"><div className="admin-avatar">{user.username.slice(0, 1).toUpperCase()}</div><div className="admin-user-meta"><strong>{user.username}</strong><span>{({ administrator: 'Administrator', editor: 'Editor', moderator: 'Moderator', support: 'Support' } as Record<TeamRole, string>)[role]}</span></div><button className="icon-button" onClick={onSignOut} aria-label="Sign out"><LogOut size={17} /></button></div></aside>
-    <div className="admin-main"><header className="admin-topbar"><div>{sidebarMode === 'hidden' && <button type="button" className="icon-button sidebar-restore" onClick={() => setSidebarMode('full')} aria-label="Show sidebar" title="Show sidebar"><ChevronRight size={17} /></button>}<span className="section-kicker">ALIB / WORKSPACE</span><span className="admin-breadcrumb">{({ overview: 'Overview', security: 'Account security', content: 'All content', editor: editId ? 'Edit content' : 'New content', media: 'Media library', settings: 'Site settings', profile: 'Creator profile', collections: 'Collections', inbox: 'Contact inbox', analytics: 'Analytics', moderation: 'Suggestions', comments: 'Comments', team: 'Team access', audit: 'Audit history', newsletter: 'Newsletter' } as Record<string, string>)[tab]}</span></div><div className="admin-topbar-actions"><input ref={mediaInputRef} className="admin-hidden-file-input" id="admin-media-upload" type="file" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,audio/mpeg,audio/mp4,video/mp4,video/webm" onChange={e => { const file = e.currentTarget.files?.[0]; if (file) void uploadMediaFile(file); }} /><span className="admin-live-status"><span className="status-dot" /> Connected as {user.username}</span>{(tab === 'overview' || tab === 'content') && canManage && <button className="button button-primary button-small" onClick={newItem}><Plus size={15} /> Create content</button>}
+    <div className="admin-main"><header className="admin-topbar"><div>{sidebarMode === 'hidden' && <button type="button" className="icon-button sidebar-restore" onClick={() => setSidebarMode('full')} aria-label="Show sidebar" title="Show sidebar"><ChevronRight size={17} /></button>}<span className="section-kicker">ALIB / WORKSPACE</span><span className="admin-breadcrumb" data-testid="admin-section-title">{headerMeta[tab]?.title || 'Creator Studio'}</span><span className="admin-header-description">{headerMeta[tab]?.description || 'Manage your digital home.'}</span></div><div className="admin-topbar-actions"><input ref={mediaInputRef} className="admin-hidden-file-input" id="admin-media-upload" type="file" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,audio/mpeg,audio/mp4,video/mp4,video/webm" onChange={e => { const file = e.currentTarget.files?.[0]; if (file) void uploadMediaFile(file); }} /><span className="admin-live-status"><span className="status-dot" /> Connected as {user.username}</span>{(tab === 'overview' || tab === 'content') && canManage && <button className="button button-primary button-small" onClick={newItem}><Plus size={15} /> Create content</button>}
   {tab === 'media' && canManage && <button className="button button-primary button-small" onClick={() => mediaInputRef.current?.click()}><Upload size={15} /> Upload asset</button>}
   {tab === 'collections' && canManage && <button className="button button-primary button-small" onClick={() => setCollectionCreateRequest(value => value + 1)}><Plus size={15} /> New collection</button>}
   {tab === 'profile' && canManage && <button className="button button-primary button-small" type="submit" form="creator-profile-form"><Check size={15} /> Save profile</button>}
@@ -877,7 +894,7 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
   {tab === 'editor' && canManage && <button className="button button-primary button-small" type="submit" form="admin-content-editor-form"><Check size={15} /> Save content</button>}
   {tab === 'team' && isAdmin && <button className="button button-primary button-small" type="submit" form="team-invite-form"><Plus size={15} /> Invite member</button>}
   {tab === 'newsletter' && isAdmin && <a className="button button-primary button-small" href="/api/v1/admin/newsletter/?export=csv"><ArrowDown size={15} /> Export CSV</a>}
-  {['inbox', 'analytics', 'moderation', 'comments', 'audit', 'team', 'newsletter', 'collections', 'media'].includes(tab) && <button className="button button-outline button-small" onClick={refreshActivePanel}><Clock3 size={15} /> Refresh</button>}</div></header>
+  {['inbox', 'analytics', 'moderation', 'comments', 'audit', 'team', 'newsletter', 'collections', 'media', 'profile', 'settings'].includes(tab) && <button aria-label={`Refresh ${headerMeta[tab]?.title || 'section'}`} className="button button-outline button-small" onClick={refreshActivePanel}><Clock3 size={15} /> Refresh</button>}</div></header>
       <div className="admin-content-area">{message && <div className={message.toLowerCase().includes('could not') || message.toLowerCase().includes('unable') ? 'error-message' : 'success-message'} role="status">{message}<button onClick={() => setMessage('')} aria-label="Dismiss message"><X size={15} /></button></div>}
       {tab === 'overview' && <><div className="admin-welcome"><div><span className="section-kicker">YOUR DIGITAL HOME</span><h1>Good to see you, {user.username}.</h1><p>Here’s what’s happening in your archive.</p></div><button className="button button-outline" onClick={() => void reload()} disabled={busy}>{busy ? 'Refreshing…' : 'Refresh data'} <Clock3 size={15} /></button></div><div className="admin-stat-grid"><AdminStat icon={<FileText size={18} />} label="Published" value={stats?.published ?? '—'} hint="Visible to visitors" /><AdminStat icon={<PenLine size={18} />} label="Drafts" value={stats?.drafts ?? '—'} hint="Still in the studio" /><AdminStat icon={<Clock3 size={18} />} label="Scheduled" value={stats?.scheduled ?? '—'} hint="Waiting to publish" /><AdminStat icon={<FolderOpen size={18} />} label="Media assets" value={stats?.assets ?? '—'} hint="Stored asset records" /></div><div className="admin-overview-grid"><section className="admin-panel recent-content-panel"><div className="admin-panel-heading"><div><span className="section-kicker">THE ARCHIVE</span><h2>Recent content</h2></div><button className="text-link" onClick={() => setTab('content')}>View all <ArrowRight size={15} /></button></div>{items.slice(0, 5).length ? <div className="admin-recent-list">{items.slice(0, 5).map(item => <div key={item.id} className="admin-recent-row"><div className="admin-recent-icon"><FileText size={17} /></div><div className="admin-recent-meta"><strong>{item.title}</strong><span>{labelType(item.content_type)} · updated {formatDate(item.updated_at)}</span></div><StatusPill status={item.status} /><button className="icon-button" aria-label={`Edit ${item.title}`} onClick={() => editItem(item)}><ArrowUpRight size={16} /></button></div>)}</div> : <div className="admin-empty"><PenLine size={22} /><h3>Your content starts here.</h3><p>Create a draft or publish a first item. Publicly published items become discoverable automatically.</p><button className="button button-primary" onClick={newItem}><Plus size={15} /> Create first item</button></div>}</section><section className="admin-panel quick-actions-panel"><div className="admin-panel-heading"><div><span className="section-kicker">QUICK ACTIONS</span><h2>Keep things moving</h2></div><Command size={19} /></div><button className="quick-action" onClick={newItem}><span className="quick-action-icon"><Plus size={17} /></span><span><strong>Write something new</strong><small>Create an article, link, project, or resource.</small></span><ArrowRight size={16} /></button><button className="quick-action" onClick={() => { setTab('media'); void loadMedia(); }}><span className="quick-action-icon"><Upload size={17} /></span><span><strong>Add a media asset</strong><small>Manage covers and permitted downloads.</small></span><ArrowRight size={16} /></button><Link className="quick-action" to="/" target="_blank"><span className="quick-action-icon"><Globe2 size={17} /></span><span><strong>Preview the public site</strong><small>See the visitor experience.</small></span><ArrowUpRight size={16} /></Link><div className="security-note"><ShieldCheck size={16} /><span>Publishing is controlled by your account permissions. Drafts are not shown to anonymous visitors.</span></div></section></div></>}
       {tab === 'content' && <section className="admin-panel content-management-panel"><div className="admin-panel-heading"><div><span className="section-kicker">CONTENT MANAGER</span><h2>Everything in the archive</h2><p>{items.length} items returned by the API</p></div><button className="button button-primary" onClick={newItem}><Plus size={15} /> New item</button></div><div className="content-table-wrap"><table className="content-table"><thead><tr><th>Title</th><th>Type</th><th>Status</th><th>Visibility</th><th>Updated</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>{items.map(item => <tr key={item.id}><td><div className="table-title"><span className="table-thumb"><FileText size={16} /></span><span><strong>{item.title}</strong><small>/{item.slug}</small></span></div></td><td>{labelType(item.content_type)}</td><td><StatusPill status={item.status} /></td><td><span className="visibility-label">{item.visibility}</span></td><td>{formatDate(item.updated_at)}</td><td><div className="table-actions"><button className="icon-button" onClick={() => editItem(item)} aria-label={`Edit ${item.title}`}><PenLine size={15} /></button><button className="icon-button danger-icon" onClick={() => void removeItem(item)} aria-label={`Delete ${item.title}`}><Trash2 size={15} /></button></div></td></tr>)}</tbody></table>{!items.length && <div className="table-empty"><FolderOpen size={22} /><p>No items have been added yet.</p><button className="button button-outline" onClick={newItem}><Plus size={15} /> Create your first item</button></div>}</div></section>}
@@ -1029,11 +1046,18 @@ function CreatorProfilePanel({ onMessage }: { onMessage: (message: string) => vo
   const [socialJson, setSocialJson] = useState('{}');
   const [loading, setLoading] = useState(true);
   const [, setSaving] = useState(false);
-  useEffect(() => {
-    api.profile().then(value => { setProfile(value); setSocialJson(JSON.stringify(value.social_links || {}, null, 2)); })
-      .catch(e => onMessage(e instanceof Error ? e.message : 'Profile could not load.'))
-      .finally(() => setLoading(false));
-  }, []);
+  async function reload() {
+    setLoading(true);
+    try {
+      const value = await api.profile();
+      setProfile(value);
+      setSocialJson(JSON.stringify(value.social_links || {}, null, 2));
+    } catch (e) {
+      onMessage(e instanceof Error ? e.message : 'Profile could not load.');
+    } finally { setLoading(false); }
+  }
+  useEffect(() => { void reload(); }, []);
+  useAdminHeaderRefresh('profile', () => { void reload(); });
   function setField<K extends keyof CreatorProfile>(key: K, value: CreatorProfile[K]) { setProfile(prev => ({ ...prev, [key]: value })); }
   async function save(e: FormEvent) {
     e.preventDefault(); setSaving(true);
@@ -1065,7 +1089,17 @@ function SiteSettingsPanel({ onMessage }: { onMessage: (message: string) => void
     { key: 'categories', label: 'Categories', help: 'Browse the archive by topic.' },
     { key: 'collections', label: 'Collections', help: 'Hand-curated groups of content.' },
   ] as const;
-  useEffect(() => { api.settings().then(value => { setSettings({ ...value, site_copy: value.site_copy || {} }); }).catch(e => onMessage(e instanceof Error ? e.message : 'Could not load site settings.')).finally(() => setLoading(false)); }, []);
+  async function reload() {
+    setLoading(true);
+    try {
+      const value = await api.settings();
+      setSettings({ ...value, site_copy: value.site_copy || {} });
+    } catch (e) {
+      onMessage(e instanceof Error ? e.message : 'Could not load site settings.');
+    } finally { setLoading(false); }
+  }
+  useEffect(() => { void reload(); }, []);
+  useAdminHeaderRefresh('settings', () => { void reload(); });
   function set<K extends keyof SiteSettings>(key: K, value: SiteSettings[K]) { setSettings(prev => ({ ...prev, [key]: value })); }
   const visibleSections = settings.homepage_sections.filter((key, index, all) => sectionOptions.some(option => option.key === key) && all.indexOf(key) === index);
   const hiddenSections = sectionOptions.filter(option => !visibleSections.includes(option.key));

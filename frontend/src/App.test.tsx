@@ -28,7 +28,8 @@ describe('Creator Studio navigation', () => {
       else if (url.includes('/admin/stats/')) payload = { published: 0, drafts: 0, scheduled: 0, assets: 0, suggestions_pending: 0 };
       else if (url.includes('/content/')) payload = { count: 0, next: null, previous: null, results: [] };
       else if (url.includes('/categories/') || url.includes('/tags/')) payload = { count: 0, next: null, previous: null, results: [] };
-      else if (url.includes('/settings/')) payload = { site_title: 'ALIB', logo_url: '', favicon_url: '', seo_description: '', homepage_sections: ['featured', 'latest', 'categories', 'collections'], theme_preferences: {} };
+      else if (url.includes('/settings/')) payload = { site_title: 'ALIB', logo_url: '', favicon_url: '', seo_description: '', homepage_sections: ['featured', 'latest', 'categories', 'collections'], theme_preferences: { primary: '#2563eb', secondary: '#facc15' }, owner_name: 'Mukamyi Izere Arcange', copyright_text: '© {year} {owner_name}. All rights reserved.', site_copy: { 'home.hero.intro': 'A test homepage intro.' } };
+      else if (url.includes('/profile/')) payload = { display_name: 'Mukamyi Izere Arcange', headline: 'A home for ideas worth keeping.', biography: 'Creator bio', avatar_url: '', location: '', social_links: {} };
       else if (url.includes('/analytics/event/')) payload = { detail: 'Event recorded.' };
       return { ok: true, status: 200, text: async () => JSON.stringify(payload) } as Response;
     }));
@@ -58,6 +59,24 @@ describe('Creator Studio navigation', () => {
     expect(sidebar?.classList.contains('is-collapsed')).toBe(false);
     expect(sidebar?.classList.contains('is-hidden')).toBe(false);
     expect(window.localStorage.getItem('alib-studio-sidebar-mode')).toBe('full');
+
+    // Workspace sections use a consistent top header with context-specific actions.
+    fireEvent.click(screen.getByRole('button', { name: 'Collections' }));
+    await waitFor(() => expect(screen.getByTestId('admin-section-title').textContent).toBe('Collections'));
+    expect(document.querySelector('.admin-header-description')?.textContent).toContain('chosen order');
+    expect(await screen.findByRole('button', { name: 'Refresh Collections' })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Creator profile' }));
+    await waitFor(() => expect(screen.getByTestId('admin-section-title').textContent).toBe('Creator profile'));
+    expect(await screen.findByRole('button', { name: 'Refresh Creator profile' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Save profile' })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Site settings' }));
+    await waitFor(() => expect(screen.getByTestId('admin-section-title').textContent).toBe('Site settings'));
+    expect((await screen.findByLabelText('Website owner') as HTMLInputElement).value).toBe('Mukamyi Izere Arcange');
+    expect((await screen.findByLabelText('Copyright template') as HTMLInputElement).value).toContain('{year}');
+    expect(await screen.findByRole('button', { name: 'Refresh Site settings' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Save site settings' })).toBeTruthy();
   });
 });
 

@@ -374,7 +374,7 @@ kbd { padding: 2px 5px; color: var(--muted); background: var(--surface-soft); bo
 .secure-note p { margin: 0; font-size: 10px; line-height: 1.7; }
 .auth-copyright { margin-top: 35px; color: var(--muted-soft); text-align: center; font-size: 9px; letter-spacing: .12em; }
 .admin-main { min-width: 0; }
-.admin-sidebar { position: fixed; z-index: 45; top: 78px; bottom: 0; left: 0; display: flex; flex-direction: column; width: 246px; padding: 26px 17px 18px; border-right: 1px solid var(--border); background: var(--surface); }
+.admin-sidebar { position: fixed; z-index: 45; top: 0; bottom: 0; left: 0; display: flex; flex-direction: column; width: 246px; padding: 26px 17px 18px; border-right: 1px solid var(--border); background: var(--surface); }
 .admin-sidebar .brand { padding: 0 11px; }
 .studio-caption { display: flex; align-items: center; gap: 10px; margin: 27px 10px 24px; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .14em; }
 .admin-workspace-label { margin: 0 10px 9px; color: var(--muted-soft); font-size: 9px; font-weight: 700; letter-spacing: .15em; }
@@ -396,10 +396,11 @@ kbd { padding: 2px 5px; color: var(--muted); background: var(--surface-soft); bo
 .admin-user-meta span { color: var(--muted); font-size: 9px; }
 .admin-sidebar-bottom .icon-button { margin-left: auto; min-width: 34px; min-height: 34px; padding: 0; }
 .admin-main { margin-left: 246px; }
-.admin-topbar { position: sticky; z-index: 30; top: 78px; display: flex; align-items: center; justify-content: space-between; min-height: 69px; gap: 18px; padding: 11px clamp(22px, 4vw, 54px); border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--bg), transparent 3%); backdrop-filter: blur(12px); }
+.admin-topbar { position: sticky; z-index: 30; top: 0; display: flex; align-items: center; justify-content: space-between; min-height: 69px; gap: 18px; padding: 11px clamp(22px, 4vw, 54px); border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--bg), transparent 3%); backdrop-filter: blur(12px); }
 .admin-topbar > div:first-child { display: flex; flex-direction: column; gap: 2px; }
 .admin-topbar .section-kicker { font-size: 8px; }
 .admin-breadcrumb { color: var(--text-strong); font-size: 13px; font-weight: 600; }
+.admin-header-description { max-width: min(560px, 60vw); color: var(--muted); font-size: 10px; line-height: 1.45; }
 .admin-topbar-actions { display: flex; align-items: center; gap: 18px; }
 .admin-live-status { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 10px; }
 .admin-live-status .status-dot { width: 6px; height: 6px; background: #16a34a; box-shadow: 0 0 0 3px rgba(22,163,74,.12); }
@@ -569,7 +570,7 @@ kbd { padding: 2px 5px; color: var(--muted); background: var(--surface-soft); bo
   .admin-menu > button.selected::before { display: none; }
   .admin-menu-link { margin-top: 0; padding-top: 0; border-top: 0; }
   .admin-main { margin-left: 0; }
-  .admin-topbar { top: 70px; }
+  .admin-topbar { top: 0; }
   .admin-auth-wrap { grid-template-columns: 1fr; }
   .admin-auth-art { min-height: 360px; padding: 28px var(--gutter); }
   .admin-auth-art > div { padding-block: 40px; }
@@ -929,7 +930,7 @@ kbd { padding: 2px 5px; color: var(--muted); background: var(--surface-soft); bo
 
 /* Keep the sidebar in the page's layout column so it can never cover the workspace. */
 .admin-page.admin-layout { display: grid; grid-template-columns: 246px minmax(0, 1fr); align-items: start; }
-.admin-page.admin-layout > .admin-sidebar { position: sticky; top: 78px; bottom: auto; grid-column: 1; grid-row: 1; width: 100%; height: calc(100vh - 78px); min-height: 0; }
+.admin-page.admin-layout > .admin-sidebar { position: sticky; top: 0; bottom: auto; grid-column: 1; grid-row: 1; width: 100%; height: 100vh; min-height: 0; }
 .admin-page.admin-layout > .admin-main { grid-column: 2; grid-row: 1; width: 100%; min-width: 0; margin-left: 0; }
 @media (min-width: 901px) {
   .admin-page.admin-layout.sidebar-small { grid-template-columns: 78px minmax(0, 1fr); }
@@ -967,3 +968,9 @@ kbd { padding: 2px 5px; color: var(--muted); background: var(--surface-soft); bo
 .site-copy-add summary { cursor: pointer; color: var(--text-strong); font-size: 11px; font-weight: 700; }
 .site-copy-add > .form-two-col { margin: 14px 0; }
 @media (max-width: 760px) { .site-copy-fields { grid-template-columns: 1fr; } }
+
+@media (max-width: 760px) {
+  .admin-header-description { display: none; }
+  .admin-topbar { gap: 10px; }
+  .admin-topbar-actions { gap: 7px; }
+}
