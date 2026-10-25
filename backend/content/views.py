@@ -11,6 +11,7 @@ from django.db import IntegrityError
 from django.db.models import Count, Max
 from django.http import JsonResponse
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.decorators import method_decorator
@@ -99,8 +100,8 @@ class ContentItemViewSet(viewsets.ModelViewSet):
             if field in snapshot:
                 setattr(item, field, snapshot[field])
         item.category_id = snapshot.get('category_id')
-        item.published_at = snapshot.get('published_at')
-        item.scheduled_for = snapshot.get('scheduled_for')
+        item.published_at = parse_datetime(snapshot['published_at']) if snapshot.get('published_at') else None
+        item.scheduled_for = parse_datetime(snapshot['scheduled_for']) if snapshot.get('scheduled_for') else None
         item.save()
         item.tags.set(snapshot.get('tag_ids', []))
         _record_revision(item, request.user)
@@ -483,6 +484,9 @@ class ContentCommentViewSet(viewsets.ModelViewSet):
     http_method_names = ['get', 'post', 'head', 'options']
     def get_queryset(self):
         queryset = ContentComment.objects.select_related('item')
+        item_id = self.request.query_params.get('item_id')
+        if item_id and item_id.isdigit():
+            queryset = queryset.filter(item_id=int(item_id))
         if self.request.user.is_authenticated and self.request.user.is_staff:
             return queryset
         return queryset.filter(status='approved', item__status='published', item__visibility='public', item__published_at__lte=timezone.now())
