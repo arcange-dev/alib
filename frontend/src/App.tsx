@@ -460,6 +460,32 @@ function PrivacyPage() { return <div className="page-wrap section-wrap legal-pag
 
 function NotFoundPage() { return <div className="page-wrap section-wrap not-found page-enter"><span className="not-found-code">404</span><h1>That page wandered off.</h1><p>It may have moved, or it may not be public yet.</p><Link className="button button-primary" to="/">Return home <ArrowRight size={16} /></Link></div>; }
 
+function ResetPasswordPage() {
+  const [params] = useSearchParams();
+  const uid = params.get('uid') || '';
+  const token = params.get('token') || '';
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmation, setConfirmation] = useState('');
+  const [state, setState] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  async function requestReset(e: FormEvent) {
+    e.preventDefault(); setBusy(true); setError(''); setState('');
+    try { const result = await api.requestPasswordReset(email); setState(result.detail); }
+    catch (e) { setError(e instanceof Error ? e.message : 'The reset email could not be sent.'); }
+    finally { setBusy(false); }
+  }
+  async function confirmReset(e: FormEvent) {
+    e.preventDefault(); setBusy(true); setError(''); setState('');
+    if (password !== confirmation) { setBusy(false); setError('Passwords do not match.'); return; }
+    try { const result = await api.confirmPasswordReset(uid, token, password); setState(result.detail); setPassword(''); setConfirmation(''); }
+    catch (e) { setError(e instanceof Error ? e.message : 'Password reset failed.'); }
+    finally { setBusy(false); }
+  }
+  return <div className="page-wrap section-wrap reset-page page-enter"><div className="page-hero page-hero-small"><div className="eyebrow">ACCOUNT RECOVERY <span className="eyebrow-rule" /></div><h1>{uid && token ? 'Choose a new password.' : 'Back into your studio.'}</h1><p>{uid && token ? 'Choose a unique password with at least 12 characters.' : 'Enter the email address for your Creator Studio staff account. If email delivery is configured, a one-use link will be sent.'}</p></div><form className="form-card reset-form" onSubmit={uid && token ? confirmReset : requestReset}>{error && <div className="error-message" role="alert">{error}</div>}{state && <div className="success-message" role="status">{state}</div>}{uid && token ? <><label>New password<input type="password" minLength={12} autoComplete="new-password" required value={password} onChange={e => setPassword(e.target.value)} /></label><label>Confirm new password<input type="password" minLength={12} autoComplete="new-password" required value={confirmation} onChange={e => setConfirmation(e.target.value)} /></label><button className="button button-primary full-width" disabled={busy}>{busy ? 'Updating…' : 'Update password'}</button></> : <><label>Staff account email<input type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} /></label><button className="button button-primary full-width" disabled={busy}>{busy ? 'Sending…' : 'Send reset link'}</button></>}<Link className="back-link" to="/admin"><ArrowLeft size={15} /> Back to sign in</Link></form></div>;
+}
+
 function AdminPage() {
   const [user, setUser] = useState<AdminUser | null>(null); const [checking, setChecking] = useState(true); const [authError, setAuthError] = useState('');
   useEffect(() => { api.me().then(setUser).catch(() => setUser(null)).finally(() => setChecking(false)); }, []);
@@ -472,7 +498,7 @@ function AdminPage() {
 function AdminLogin({ onLogin, error, setError }: { onLogin: (u: AdminUser) => void; error: string; setError: (s: string) => void }) {
   const [username, setUsername] = useState(''); const [password, setPassword] = useState(''); const [busy, setBusy] = useState(false);
   async function submit(e: FormEvent) { e.preventDefault(); setBusy(true); setError(''); try { onLogin(await api.login(username, password)); } catch (e) { setError(e instanceof Error ? e.message : 'Sign-in failed. Check your credentials and try again.'); } finally { setBusy(false); } }
-  return <div className="admin-auth-wrap"><div className="admin-auth-art"><Link to="/" className="brand"><span className="brand-mark">A<span>.</span></span><span className="brand-word">ALIB</span></Link><div><span className="eyebrow">PRIVATE WORKSPACE</span><h1>Make room<br /><em>for the good stuff.</em></h1><p>Your ideas, projects, and digital archive — managed in one place.</p></div><span className="auth-art-stamp">CREATOR STUDIO<br />BUILD / SAVE / PUBLISH</span></div><div className="admin-auth-form"><Link to="/" className="back-link"><ArrowLeft size={15} /> Back to ALIB</Link><div className="admin-auth-form-inner"><span className="section-kicker">WELCOME BACK</span><h2>Sign in to your studio</h2><p>Use the administrator account created with Django.</p>{error && <div className="error-message" role="alert">{error}</div>}<form onSubmit={submit}><label>Username<input value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" required /></label><label>Password<input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" required /></label><button className="button button-primary full-width" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'} <ArrowRight size={16} /></button></form><div className="secure-note"><ShieldCheck size={16} /><p>Protected by the Django server. No default password is provided.</p></div></div><span className="auth-copyright">ALIB · PRIVATE BY DESIGN</span></div></div>;
+  return <div className="admin-auth-wrap"><div className="admin-auth-art"><Link to="/" className="brand"><span className="brand-mark">A<span>.</span></span><span className="brand-word">ALIB</span></Link><div><span className="eyebrow">PRIVATE WORKSPACE</span><h1>Make room<br /><em>for the good stuff.</em></h1><p>Your ideas, projects, and digital archive — managed in one place.</p></div><span className="auth-art-stamp">CREATOR STUDIO<br />BUILD / SAVE / PUBLISH</span></div><div className="admin-auth-form"><Link to="/" className="back-link"><ArrowLeft size={15} /> Back to ALIB</Link><div className="admin-auth-form-inner"><span className="section-kicker">WELCOME BACK</span><h2>Sign in to your studio</h2><p>Use the administrator account created with Django.</p>{error && <div className="error-message" role="alert">{error}</div>}<form onSubmit={submit}><label>Username<input value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" required /></label><label>Password<input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" required /></label><button className="button button-primary full-width" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'} <ArrowRight size={16} /></button></form><p className="forgot-password"><Link to="/reset-password">Forgot your password?</Link></p><div className="secure-note"><ShieldCheck size={16} /><p>Protected by the Django server. Reset email delivery requires a configured email provider.</p></div></div><span className="auth-copyright">ALIB · PRIVATE BY DESIGN</span></div></div>;
 }
 
 function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => void }) {
@@ -540,6 +566,84 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
       </div>
     </div>
   </div>;
+}
+
+function RevisionHistoryPanel({ itemId, onRestored }: { itemId: number; onRestored: (item: ContentItem) => void }) {
+  const [revisions, setRevisions] = useState<ContentRevision[]>([]);
+  const [error, setError] = useState('');
+  const [busyId, setBusyId] = useState<number | null>(null);
+  useEffect(() => { api.revisions(itemId).then(setRevisions).catch(e => setError(e instanceof Error ? e.message : 'Revision history unavailable.')); }, [itemId]);
+  async function restore(id: number) {
+    if (!window.confirm('Restore this revision? The current version will be retained as another revision.')) return;
+    setBusyId(id); setError('');
+    try { onRestored(await api.restoreRevision(itemId, id)); const updated = await api.revisions(itemId); setRevisions(updated); }
+    catch (e) { setError(e instanceof Error ? e.message : 'Could not restore revision.'); }
+    finally { setBusyId(null); }
+  }
+  return <section className="admin-panel revision-panel"><div className="admin-panel-heading"><div><span className="section-kicker">VERSION HISTORY</span><h2>Saved revisions</h2></div><History size={18} /></div>{error && <p className="error-message">{error}</p>}{revisions.length ? revisions.slice(0, 8).map(rev => <div className="revision-row" key={rev.id}><div><strong>Revision {rev.revision_number}</strong><span>{rev.editor_username || 'System'} · {formatDate(rev.created_at)}</span><small>{String(rev.snapshot.title || 'Untitled')}</small></div><button className="button button-outline button-small" disabled={busyId === rev.id} onClick={() => void restore(rev.id)}>{busyId === rev.id ? 'Restoring…' : 'Restore'}</button></div>) : !error && <p className="panel-muted">No saved revisions returned yet.</p>}</section>;
+}
+
+function SiteSettingsPanel({ onMessage }: { onMessage: (message: string) => void }) {
+  const [settings, setSettings] = useState<SiteSettings>({ site_title: 'ALIB — Digital Home', logo_url: '', favicon_url: '', seo_description: '', homepage_sections: ['featured', 'latest', 'categories', 'collections'], theme_preferences: { primary: '#2563eb', secondary: '#facc15' } });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { api.settings().then(setSettings).catch(e => onMessage(e instanceof Error ? e.message : 'Could not load site settings.')).finally(() => setLoading(false)); }, []);
+  function set<K extends keyof SiteSettings>(key: K, value: SiteSettings[K]) { setSettings(prev => ({ ...prev, [key]: value })); }
+  async function save(e: FormEvent) { e.preventDefault(); setSaving(true); try { const saved = await api.saveSettings(settings); setSettings(saved); onMessage('Site settings saved.'); document.title = saved.site_title; } catch (e) { onMessage(e instanceof Error ? e.message : 'Settings could not be saved.'); } finally { setSaving(false); } }
+  return <section className="admin-panel settings-panel"><div className="admin-panel-heading"><div><span className="section-kicker">SITE CONFIGURATION</span><h2>Brand, profile and homepage</h2><p>{loading ? 'Loading settings…' : 'These values are saved in the database.'}</p></div><Settings2 size={19} /></div><form className="settings-form" onSubmit={save}><label>Site title<input required maxLength={140} value={settings.site_title} onChange={e => set('site_title', e.target.value)} /></label><label>SEO description<textarea rows={3} maxLength={300} value={settings.seo_description} onChange={e => set('seo_description', e.target.value)} /></label><div className="form-two-col"><label>Logo URL<input type="url" value={settings.logo_url} onChange={e => set('logo_url', e.target.value)} placeholder="https://… (optional)" /></label><label>Favicon URL<input type="url" value={settings.favicon_url} onChange={e => set('favicon_url', e.target.value)} placeholder="https://… (optional)" /></label></div><label>Homepage sections (comma-separated)<input value={settings.homepage_sections.join(', ')} onChange={e => set('homepage_sections', e.target.value.split(',').map(x => x.trim()).filter(Boolean))} /></label><div className="settings-theme"><div><strong>Primary blue</strong><span>#2563EB</span></div><div><strong>Accent yellow</strong><span>#FACC15</span></div><p>ALIB uses the established blue-and-yellow palette. A future appearance editor can add more tokens without introducing arbitrary colors.</p></div><button className="button button-primary" disabled={saving || loading}>{saving ? 'Saving…' : 'Save site settings'} <Check size={15} /></button></form></section>;
+}
+
+function ContactInboxPanel({ onMessage }: { onMessage: (message: string) => void }) {
+  const [rows, setRows] = useState<ContactInboxItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  async function reload() { setLoading(true); try { setRows(await api.contactInbox()); } catch (e) { onMessage(e instanceof Error ? e.message : 'Inbox could not load.'); } finally { setLoading(false); } }
+  useEffect(() => { void reload(); }, []);
+  async function mark(row: ContactInboxItem) { try { await api.reviewContact(row.id, !row.reviewed); await reload(); } catch (e) { onMessage(e instanceof Error ? e.message : 'Message could not be updated.'); } }
+  return <section className="admin-panel"><div className="admin-panel-heading"><div><span className="section-kicker">PRIVATE CONTACT MESSAGES</span><h2>Creator inbox</h2><p>Contact messages are only available to signed-in staff.</p></div><Inbox size={19} /></div>{loading ? <div className="admin-empty">Loading inbox…</div> : rows.length ? <div className="admin-inbox-list">{rows.map(row => <article className={`inbox-row ${row.reviewed ? 'is-reviewed' : ''}`} key={row.id}><div><strong>{row.name}</strong><a href={`mailto:${row.email}`}>{row.email}</a><time>{formatDate(row.created_at)}</time><p>{row.message}</p></div><button className="button button-outline button-small" onClick={() => void mark(row)}>{row.reviewed ? 'Mark unread' : 'Mark reviewed'}</button></article>)}</div> : <div className="admin-empty"><Mail size={22} /><h3>No messages yet.</h3><p>Messages from the public Contact page appear here.</p></div>}</section>;
+}
+
+function AnalyticsPanel({ onMessage }: { onMessage: (message: string) => void }) {
+  const [data, setData] = useState<AnalyticsSummary | null>(null);
+  const [error, setError] = useState('');
+  useEffect(() => { api.adminAnalytics().then(setData).catch(e => { const message = e instanceof Error ? e.message : 'Analytics could not load.'; setError(message); onMessage(message); }); }, []);
+  return <section className="admin-panel"><div className="admin-panel-heading"><div><span className="section-kicker">REAL EVENTS ONLY / LAST 30 DAYS</span><h2>Audience analytics</h2><p>Counts come from actual page and outbound events recorded by the API.</p></div><BarChart3 size={19} /></div>{error && <p className="error-message">{error}</p>}{data && <><div className="admin-stat-grid"><AdminStat icon={<BarChart3 size={18} />} label="Page views" value={data.page_views} hint="Recorded events" /><AdminStat icon={<ExternalLink size={18} />} label="Outbound clicks" value={data.outbound_clicks} hint="Source links opened" /><AdminStat icon={<Search size={18} />} label="Searches" value={data.searches} hint="Search activity" /><AdminStat icon={<Heart size={18} />} label="Daily visitors" value={data.unique_daily_visitors_approx} hint="Approximate, privacy-salted" /></div><div className="admin-inbox-list">{data.popular_paths.map(row => <div className="analytics-path-row" key={row.path}><code>{row.path}</code><strong>{row.views} views</strong></div>)}</div></>}</section>;
+}
+
+function SuggestionModerationPanel({ onMessage }: { onMessage: (message: string) => void }) {
+  const [suggestions, setSuggestions] = useState<Array<{ id: number; title: string; url: string; reason: string; status: string; created_at: string }>>([]);
+  const [loading, setLoading] = useState(true);
+  async function reload() { setLoading(true); try { const result = await api.adminSuggestions(); setSuggestions(result.results); } catch (e) { onMessage(e instanceof Error ? e.message : 'Suggestions could not load.'); } finally { setLoading(false); } }
+  useEffect(() => { void reload(); }, []);
+  async function review(id: number, status: 'approved' | 'rejected') { try { await api.reviewSuggestion(id, status); await reload(); onMessage(`Suggestion ${status}.`); } catch (e) { onMessage(e instanceof Error ? e.message : 'Suggestion could not be reviewed.'); } }
+  return <section className="admin-panel"><div className="admin-panel-heading"><div><span className="section-kicker">COMMUNITY QUEUE</span><h2>Suggestions for review</h2><p>Approval records moderation only; it does not publish content automatically.</p></div><ShieldCheck size={19} /></div>{loading ? <div className="admin-empty">Loading suggestions…</div> : suggestions.length ? <div className="admin-inbox-list">{suggestions.map(row => <article className="inbox-row" key={row.id}><div><strong>{row.title}</strong><a href={row.url} target="_blank" rel="noreferrer">{row.url}</a><time>{formatDate(row.created_at)} · {row.status}</time>{row.reason && <p>{row.reason}</p>}</div><div className="moderation-actions"><button className="button button-primary button-small" onClick={() => void review(row.id, 'approved')}>Approve</button><button className="button button-outline button-small" onClick={() => void review(row.id, 'rejected')}>Reject</button></div></article>)}</div> : <div className="admin-empty"><Check size={22} /><h3>The moderation queue is clear.</h3></div>}</section>;
+}
+
+function CommentModerationPanel({ onMessage }: { onMessage: (message: string) => void }) {
+  const [comments, setComments] = useState<ContentComment[]>([]);
+  const [loading, setLoading] = useState(true);
+  async function reload() { setLoading(true); try { const result = await api.comments(); setComments(result.results); } catch (e) { onMessage(e instanceof Error ? e.message : 'Comments could not load.'); } finally { setLoading(false); } }
+  useEffect(() => { void reload(); }, []);
+  async function moderate(id: number, status: 'approved' | 'rejected') { try { await api.moderateComment(id, status); await reload(); onMessage(`Comment ${status}.`); } catch (e) { onMessage(e instanceof Error ? e.message : 'Comment could not be moderated.'); } }
+  return <section className="admin-panel"><div className="admin-panel-heading"><div><span className="section-kicker">COMMENT MODERATION</span><h2>Reader conversations</h2><p>Review pending comments before they appear on public pages.</p></div><MessageCircle size={19} /></div>{loading ? <div className="admin-empty">Loading comments…</div> : comments.length ? <div className="admin-inbox-list">{comments.map(row => <article className="inbox-row" key={row.id}><div><strong>{row.name}</strong><time>{formatDate(row.created_at)} · {row.status}</time><p>{row.body}</p></div><div className="moderation-actions"><button className="button button-primary button-small" onClick={() => void moderate(row.id, 'approved')}>Approve</button><button className="button button-outline button-small" onClick={() => void moderate(row.id, 'rejected')}>Reject</button></div></article>)}</div> : <div className="admin-empty"><MessageCircle size={22} /><h3>No comments waiting.</h3></div>}</section>;
+}
+
+function CollectionsManagerPanel({ items, onMessage }: { items: ContentItem[]; onMessage: (message: string) => void }) {
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [collectionId, setCollectionId] = useState<number | undefined>();
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [cover, setCover] = useState('');
+  const [visibility, setVisibility] = useState('public');
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  async function reload() { setLoading(true); try { const result = await api.collections(); setCollections(result.results); } catch (e) { onMessage(e instanceof Error ? e.message : 'Collections could not load.'); } finally { setLoading(false); } }
+  useEffect(() => { void reload(); }, []);
+  function editCollection(row: Collection) { setCollectionId(row.id); setTitle(row.title); setDescription(row.description || ''); setCover(row.cover_image_url || ''); setVisibility(row.visibility || 'public'); setSelectedIds(items.filter(x => x.collection_slugs?.includes(row.slug)).map(x => x.id)); }
+  function reset() { setCollectionId(undefined); setTitle(''); setDescription(''); setCover(''); setVisibility('public'); setSelectedIds([]); }
+  async function save(e: FormEvent) { e.preventDefault(); setSaving(true); try { await api.saveCollection({ title, description, cover_image_url: cover, visibility, item_ids: selectedIds }, collectionId); onMessage('Collection saved.'); reset(); await reload(); } catch (e) { onMessage(e instanceof Error ? e.message : 'Collection could not be saved.'); } finally { setSaving(false); } }
+  function move(id: number, delta: number) { setSelectedIds(prev => { const index = prev.indexOf(id); const next = [...prev]; const target = index + delta; if (index < 0 || target < 0 || target >= next.length) return prev; [next[index], next[target]] = [next[target], next[index]]; return next; }); }
+  return <section className="admin-panel"><div className="admin-panel-heading"><div><span className="section-kicker">CURATION</span><h2>Collections manager</h2><p>Create public collections and persist the reading order of their items.</p></div><Layers3 size={19} /></div><div className="collection-admin-layout"><div className="collection-admin-list">{loading ? <p>Loading collections…</p> : collections.map(row => <button key={row.id} className={collectionId === row.id ? 'collection-admin-item selected' : 'collection-admin-item'} onClick={() => editCollection(row)}><strong>{row.title}</strong><span>{row.visibility} · {row.item_count ?? 0} public items</span></button>)}<button className="button button-outline full-width" onClick={reset}>New collection</button></div><form className="settings-form" onSubmit={save}><label>Collection title<input required value={title} onChange={e => setTitle(e.target.value)} /></label><label>Description<textarea rows={3} value={description} onChange={e => setDescription(e.target.value)} /></label><label>Cover image URL<input type="url" value={cover} onChange={e => setCover(e.target.value)} /></label><label>Visibility<select value={visibility} onChange={e => setVisibility(e.target.value)}><option value="public">Public</option><option value="unlisted">Unlisted</option><option value="private">Private</option></select></label><div className="collection-content-picker"><span className="section-kicker">ORDERED ITEMS — USE ARROWS TO REORDER</span>{items.map(item => <label key={item.id} className="check-field"><input type="checkbox" checked={selectedIds.includes(item.id)} onChange={e => setSelectedIds(prev => e.target.checked ? [...prev, item.id] : prev.filter(id => id !== item.id))} />{item.title}{selectedIds.includes(item.id) && <span className="order-buttons"><button type="button" aria-label={`Move ${item.title} up`} onClick={e => { e.preventDefault(); move(item.id, -1); }}>↑</button><button type="button" aria-label={`Move ${item.title} down`} onClick={e => { e.preventDefault(); move(item.id, 1); }}>↓</button></span>}</label>)}</div><button className="button button-primary" disabled={saving}>{saving ? 'Saving…' : 'Save collection'}</button></form></div></section>;
 }
 
 function AdminStat({ icon, label, value, hint }: { icon: ReactNode; label: string; value: number | string; hint: string }) { return <div className="admin-stat-card"><span className="admin-stat-icon">{icon}</span><span className="admin-stat-label">{label}</span><strong>{value}</strong><span className="admin-stat-hint">{hint}</span></div>; }
