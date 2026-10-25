@@ -32,7 +32,7 @@ export const api = {
   adminAnalytics: () => request<AnalyticsSummary>('/admin/analytics/'),
   auditEvents: (params: Record<string, string> = {}) => request<AuditEventItem[]>(`/admin/audit/${new URLSearchParams(params).size ? `?${new URLSearchParams(params)}` : ''}`),
   newsletterSubscribers: (active = 'all') => request<NewsletterSubscriberItem[]>(`/admin/newsletter/${active === 'all' ? '' : `?active=${active}`}`),
-  contactInbox: () => request<ContactInboxItem[]>('/admin/contact/'),
+  contactInbox: (archived = false) => request<ContactInboxItem[]>(`/admin/contact/?archived=${archived ? 'true' : 'false'}`),
   saveProfile: (payload: Partial<CreatorProfile>) => request<CreatorProfile>('/admin/profile/', { method: 'PUT', body: JSON.stringify(payload) }),
   team: () => request<TeamMember[]>('/admin/team/'),
   inviteTeamMember: (payload: { username: string; email: string; role: TeamRole }) => request<{ detail: string; member: TeamMember }>('/admin/team/', { method: 'POST', body: JSON.stringify(payload) }),
@@ -42,6 +42,8 @@ export const api = {
   reviewSuggestion: (id: number, status: 'pending' | 'approved' | 'rejected') => request<{ id: number; status: string }>(`/suggestions/${id}/review/`, { method: 'POST', body: JSON.stringify({ status }) }),
   bulkReviewSuggestions: (ids: number[], status: 'pending' | 'approved' | 'rejected') => request<{ updated: number; status: string }>('/suggestions/bulk-review/', { method: 'POST', body: JSON.stringify({ ids, status }) }),
   reviewContact: (id: number, reviewed: boolean) => request<{ id: number; reviewed: boolean }>('/admin/contact/', { method: 'PATCH', body: JSON.stringify({ id, reviewed }) }),
+  archiveContact: (id: number, archived: boolean) => request<{ id: number; reviewed: boolean; archived: boolean }>(`/admin/contact/${id}/`, { method: 'PATCH', body: JSON.stringify({ archived }) }),
+  deleteContact: (id: number) => request<void>(`/admin/contact/${id}/`, { method: 'DELETE' }),
   comments: (item_id?: number) => request<PageResult<ContentComment>>(`/comments/${item_id ? `?item_id=${item_id}` : ''}`),
   submitComment: (payload: { item_id: number; name: string; email: string; body: string }) => request<ContentComment>('/comments/', { method: 'POST', body: JSON.stringify(payload) }),
   moderateComment: (id: number, status: 'pending' | 'approved' | 'rejected') => request<ContentComment>(`/comments/${id}/moderate/`, { method: 'POST', body: JSON.stringify({ status }) }),
@@ -122,7 +124,7 @@ export interface AdminStats { published: number; drafts: number; scheduled: numb
 export interface SiteSettings { site_title: string; logo_url: string; favicon_url: string; seo_description: string; homepage_sections: string[]; theme_preferences: Record<string, string>; updated_at?: string; }
 export interface ContentRevision { id: number; revision_number: number; snapshot: Record<string, unknown>; editor_username: string; created_at: string; }
 export interface ContentComment { id: number; item_id?: number; name: string; email?: string; body: string; status: 'pending' | 'approved' | 'rejected'; created_at: string; }
-export interface ContactInboxItem { id: number; name: string; email: string; message: string; reviewed: boolean; created_at: string; }
+export interface ContactInboxItem { id: number; name: string; email: string; message: string; reviewed: boolean; archived: boolean; created_at: string; }
 export interface AnalyticsSummary { period_days: number; page_views: number; outbound_clicks: number; searches: number; unique_daily_visitors_approx: number; popular_paths: { path: string; views: number }[]; daily_page_views: { day: string; views: number }[]; }
 
 export interface AuditEventItem { id: number; actor: string; action: string; object_type: string; object_id: string; details: Record<string, unknown>; created_at: string; }
