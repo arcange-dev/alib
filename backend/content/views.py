@@ -323,6 +323,7 @@ class MediaUploadAPIView(APIView):
         asset = MediaAsset.objects.create(
             title=str(request.data.get('title', ''))[:200] or uploaded.name[:200],
             description=str(request.data.get('description', ''))[:500],
+            alt_text=str(request.data.get('alt_text', ''))[:300],
             original_filename=PurePath(uploaded.name).name[:255], storage_path=object_key,
             mime_type=mime_type, file_size=uploaded.size,
             visibility='private', downloadable=False, uploaded_by=request.user,
