@@ -40,6 +40,7 @@ export const api = {
   saveCollection: (payload: Partial<Collection> & { item_ids?: number[] }, id?: number) => request<Collection>(id ? `/collections/${id}/` : '/collections/', { method: id ? 'PATCH' : 'POST', body: JSON.stringify(payload) }),
   adminSuggestions: () => request<PageResult<{ id: number; title: string; url: string; reason: string; status: string; created_at: string }>>('/suggestions/?page_size=100'),
   reviewSuggestion: (id: number, status: 'pending' | 'approved' | 'rejected') => request<{ id: number; status: string }>(`/suggestions/${id}/review/`, { method: 'POST', body: JSON.stringify({ status }) }),
+  bulkReviewSuggestions: (ids: number[], status: 'pending' | 'approved' | 'rejected') => request<{ updated: number; status: string }>('/suggestions/bulk-review/', { method: 'POST', body: JSON.stringify({ ids, status }) }),
   reviewContact: (id: number, reviewed: boolean) => request<{ id: number; reviewed: boolean }>('/admin/contact/', { method: 'PATCH', body: JSON.stringify({ id, reviewed }) }),
   comments: (item_id?: number) => request<PageResult<ContentComment>>(`/comments/${item_id ? `?item_id=${item_id}` : ''}`),
   submitComment: (payload: { item_id: number; name: string; email: string; body: string }) => request<ContentComment>('/comments/', { method: 'POST', body: JSON.stringify(payload) }),
