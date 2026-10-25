@@ -205,6 +205,18 @@ class ContentComment(models.Model):
         ordering = ['-created_at']
 
 
+class StaffTwoFactor(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='alib_two_factor')
+    secret_encrypted = models.TextField(blank=True)
+    enabled = models.BooleanField(default=False, db_index=True)
+    last_verified_step = models.BigIntegerField(default=-1)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'Two-factor for user {self.user_id}'
+
+
 class AuditEvent(models.Model):
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
     action = models.CharField(max_length=120)
