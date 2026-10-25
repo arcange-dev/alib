@@ -5,8 +5,8 @@ import {
   Compass, ExternalLink, FileText, Filter, FolderOpen, Globe2, Heart, History, Inbox, Layers3, Link2, LockKeyhole,
   LogOut, Mail, Menu, MessageCircle, Moon, PenLine, Plus, Search, Share2, ShieldCheck, Sparkles, Sun, ThumbsUp, Trash2, Upload, Video, X, BarChart3, Settings2,
 } from 'lucide-react';
-import { api, type AdminStats, type AdminUser } from './api';
-import type { AnalyticsSummary, Category, Collection, ContactInboxItem, ContentComment, ContentItem, ContentRevision, ContentType, CreatorProfile, HomePayload, MediaAsset, SiteSettings } from './types';
+import { api, type AdminStats, type AdminUser, type AnalyticsSummary, type ContactInboxItem, type ContentComment, type ContentRevision, type SiteSettings } from './api';
+import type { Category, Collection, ContentItem, ContentType, CreatorProfile, HomePayload, MediaAsset } from './types';
 
 const fallbackProfile: CreatorProfile = {
   display_name: 'Your name', headline: 'A home for ideas worth keeping.',
