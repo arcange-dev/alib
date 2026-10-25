@@ -1,3 +1,4 @@
+import csv
 import hashlib
 import re
 import secrets
@@ -10,7 +11,7 @@ from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Max
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.utils.encoding import force_bytes, force_str
@@ -604,6 +605,45 @@ class AnalyticsEventAPIView(APIView):
         AnalyticsEvent.objects.create(event_type=event_type, path=path, referrer=referrer, visitor_hash=visitor_hash, item=item)
         return Response({'detail': 'Event recorded.'}, status=status.HTTP_202_ACCEPTED)
 
+
+class AdminAuditEventAPIView(APIView):
+    permission_classes = [IsALIBAdministrator]
+
+    def get(self, request):
+        queryset = AuditEvent.objects.select_related('actor').order_by('-created_at')
+        action_filter = str(request.query_params.get('action', '')).strip()[:120]
+        object_type = str(request.query_params.get('object_type', '')).strip()[:100]
+        if action_filter:
+            queryset = queryset.filter(action__icontains=action_filter)
+        if object_type:
+            queryset = queryset.filter(object_type__iexact=object_type)
+        return Response([
+            {'id': event.pk, 'actor': event.actor.get_username() if event.actor else 'System', 'action': event.action,
+             'object_type': event.object_type, 'object_id': event.object_id, 'details': event.details, 'created_at': event.created_at}
+            for event in queryset[:250]
+        ])
+
+
+class AdminNewsletterAPIView(APIView):
+    permission_classes = [IsALIBAdministrator]
+
+    def get(self, request):
+        queryset = NewsletterSubscriber.objects.order_by('-created_at')
+        active = request.query_params.get('active')
+        if active in {'true', 'false'}:
+            queryset = queryset.filter(is_active=(active == 'true'))
+        if request.query_params.get('format') == 'csv':
+            response = HttpResponse(content_type='text/csv; charset=utf-8')
+            response['Content-Disposition'] = 'attachment; filename=alib-newsletter-subscribers.csv'
+            writer = csv.writer(response)
+            writer.writerow(['email', 'active', 'confirmed_at', 'created_at'])
+            for row in queryset.iterator():
+                writer.writerow([row.email, 'yes' if row.is_active else 'no', row.confirmed_at.isoformat() if row.confirmed_at else '', row.created_at.isoformat()])
+            return response
+        return Response([
+            {'id': row.pk, 'email': row.email, 'is_active': row.is_active, 'confirmed_at': row.confirmed_at, 'created_at': row.created_at}
+            for row in queryset[:500]
+        ])
 
 class AdminAnalyticsAPIView(APIView):
     permission_classes = [IsALIBStaff]
