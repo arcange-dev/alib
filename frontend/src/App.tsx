@@ -3,9 +3,9 @@ import { Link, NavLink, Route, Routes, useLocation, useParams, useSearchParams }
 import {
   ArrowDown, ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, Bookmark, Check, ChevronDown, CircleHelp, Clock3, Command,
   Compass, ExternalLink, FileText, Filter, FolderOpen, Globe2, Heart, History, Inbox, Layers3, Link2, LockKeyhole,
-  LogOut, Mail, Menu, MessageCircle, Moon, PenLine, Plus, Search, Share2, ShieldCheck, Sparkles, Sun, ThumbsUp, Trash2, Upload, Video, X, BarChart3, Settings2,
+  LogOut, Mail, Menu, MessageCircle, Moon, PenLine, Plus, Search, Share2, ShieldCheck, Sparkles, Sun, ThumbsUp, Trash2, Upload, Video, X, BarChart3, Settings2, Users,
 } from 'lucide-react';
-import { api, type AdminStats, type AdminUser, type AnalyticsSummary, type ContactInboxItem, type ContentComment, type ContentRevision, type SiteSettings } from './api';
+import { api, type AdminStats, type AdminUser, type AnalyticsSummary, type ContactInboxItem, type ContentComment, type ContentRevision, type SiteSettings, type TeamMember, type TeamRole } from './api';
 import type { Category, Collection, ContentItem, ContentType, CreatorProfile, HomePayload, MediaAsset } from './types';
 
 const fallbackProfile: CreatorProfile = {
@@ -497,9 +497,13 @@ function AdminLogin({ onLogin, error, setError }: { onLogin: (u: AdminUser) => v
 }
 
 function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => void }) {
-  const [tab, setTab] = useState<'overview' | 'content' | 'editor' | 'media' | 'settings' | 'collections' | 'inbox' | 'analytics' | 'moderation' | 'comments'>('overview'); const [stats, setStats] = useState<AdminStats | null>(null); const [items, setItems] = useState<ContentItem[]>([]); const [media, setMedia] = useState<MediaAsset[]>([]); const [mediaAltText, setMediaAltText] = useState<Record<number, string>>({}); const [busy, setBusy] = useState(false); const [message, setMessage] = useState(''); const [editId, setEditId] = useState<number | undefined>();
+  const [tab, setTab] = useState<'overview' | 'content' | 'editor' | 'media' | 'settings' | 'collections' | 'inbox' | 'analytics' | 'moderation' | 'comments' | 'team'>('overview'); const [stats, setStats] = useState<AdminStats | null>(null); const [items, setItems] = useState<ContentItem[]>([]); const [media, setMedia] = useState<MediaAsset[]>([]); const [mediaAltText, setMediaAltText] = useState<Record<number, string>>({}); const [busy, setBusy] = useState(false); const [message, setMessage] = useState(''); const [editId, setEditId] = useState<number | undefined>();
   const emptyForm = { title: '', slug: '', summary: '', body: '', content_type: 'article' as ContentType, source_url: '', cover_image_url: '', status: 'draft', visibility: 'public', featured: false, allow_download: false, scheduled_for: '' };
   const [form, setForm] = useState(emptyForm);
+  const role = user.role || 'editor';
+  const canManage = role === 'administrator' || role === 'editor';
+  const canModerate = role === 'administrator' || role === 'moderator';
+  const isAdmin = role === 'administrator';
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     try {
@@ -536,18 +540,19 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
   function setField<K extends keyof typeof emptyForm>(key: K, value: (typeof emptyForm)[K]) { setForm(prev => ({ ...prev, [key]: value })); }
   return <div className="admin-page"><aside className="admin-sidebar"><Link to="/" className="brand"><span className="brand-mark">A<span>.</span></span><span className="brand-word">ALIB</span></Link><div className="studio-caption"><span className="status-dot" /> CREATOR STUDIO</div><div className="admin-workspace-label">WORKSPACE</div><nav className="admin-menu" aria-label="Creator Studio navigation">
       <button className={tab === 'overview' ? 'selected' : ''} onClick={() => setTab('overview')}><Compass size={17} /> Overview</button>
-      <button className={tab === 'content' ? 'selected' : ''} onClick={() => setTab('content')}><FileText size={17} /> All content <span className="nav-count">{items.length}</span></button>
-      <button className={tab === 'editor' ? 'selected' : ''} onClick={newItem}><Plus size={17} /> New content</button>
-      <button className={tab === 'media' ? 'selected' : ''} onClick={() => { setTab('media'); void loadMedia(); }}><FolderOpen size={17} /> Media library</button>
-      <button className={tab === 'collections' ? 'selected' : ''} onClick={() => setTab('collections')}><Layers3 size={17} /> Collections</button>
-      <button className={tab === 'settings' ? 'selected' : ''} onClick={() => setTab('settings')}><Settings2 size={17} /> Site settings</button>
-      <button className={tab === 'inbox' ? 'selected' : ''} onClick={() => setTab('inbox')}><Inbox size={17} /> Contact inbox</button>
+      {canManage && <button className={tab === 'content' ? 'selected' : ''} onClick={() => setTab('content')}><FileText size={17} /> All content <span className="nav-count">{items.length}</span></button>}
+      {canManage && <button className={tab === 'editor' ? 'selected' : ''} onClick={newItem}><Plus size={17} /> New content</button>}
+      {canManage && <button className={tab === 'media' ? 'selected' : ''} onClick={() => { setTab('media'); void loadMedia(); }}><FolderOpen size={17} /> Media library</button>}
+      {canManage && <button className={tab === 'collections' ? 'selected' : ''} onClick={() => setTab('collections')}><Layers3 size={17} /> Collections</button>}
+      {isAdmin && <button className={tab === 'settings' ? 'selected' : ''} onClick={() => setTab('settings')}><Settings2 size={17} /> Site settings</button>}
+      {canModerate && <button className={tab === 'inbox' ? 'selected' : ''} onClick={() => setTab('inbox')}><Inbox size={17} /> Contact inbox</button>}
       <button className={tab === 'analytics' ? 'selected' : ''} onClick={() => setTab('analytics')}><BarChart3 size={17} /> Analytics</button>
-      <button className={tab === 'moderation' ? 'selected' : ''} onClick={() => setTab('moderation')}><ShieldCheck size={17} /> Suggestions</button>
-      <button className={tab === 'comments' ? 'selected' : ''} onClick={() => setTab('comments')}><MessageCircle size={17} /> Comments</button>
+      {canModerate && <button className={tab === 'moderation' ? 'selected' : ''} onClick={() => setTab('moderation')}><ShieldCheck size={17} /> Suggestions</button>}
+      {canModerate && <button className={tab === 'comments' ? 'selected' : ''} onClick={() => setTab('comments')}><MessageCircle size={17} /> Comments</button>}
+      {isAdmin && <button className={tab === 'team' ? 'selected' : ''} onClick={() => setTab('team')}><Users size={17} /> Team access</button>}
       <Link to="/" className="admin-menu-link"><Globe2 size={17} /> View public site <ArrowUpRight size={14} /></Link>
     </nav><div className="admin-sidebar-bottom"><div className="admin-avatar">{user.username.slice(0, 1).toUpperCase()}</div><div className="admin-user-meta"><strong>{user.username}</strong><span>Administrator</span></div><button className="icon-button" onClick={onSignOut} aria-label="Sign out"><LogOut size={17} /></button></div></aside>
-    <div className="admin-main"><header className="admin-topbar"><div><span className="section-kicker">ALIB / WORKSPACE</span><span className="admin-breadcrumb">{({ overview: 'Overview', content: 'All content', editor: editId ? 'Edit content' : 'New content', media: 'Media library', settings: 'Site settings', collections: 'Collections', inbox: 'Contact inbox', analytics: 'Analytics', moderation: 'Suggestions', comments: 'Comments' } as Record<string, string>)[tab]}</span></div><div className="admin-topbar-actions"><span className="admin-live-status"><span className="status-dot" /> Connected as {user.username}</span><button className="button button-primary button-small" onClick={newItem}><Plus size={15} /> Create content</button></div></header>
+    <div className="admin-main"><header className="admin-topbar"><div><span className="section-kicker">ALIB / WORKSPACE</span><span className="admin-breadcrumb">{({ overview: 'Overview', content: 'All content', editor: editId ? 'Edit content' : 'New content', media: 'Media library', settings: 'Site settings', collections: 'Collections', inbox: 'Contact inbox', analytics: 'Analytics', moderation: 'Suggestions', comments: 'Comments', team: 'Team access' } as Record<string, string>)[tab]}</span></div><div className="admin-topbar-actions"><span className="admin-live-status"><span className="status-dot" /> Connected as {user.username}</span>{canManage && <button className="button button-primary button-small" onClick={newItem}><Plus size={15} /> Create content</button>}</div></header>
       <div className="admin-content-area">{message && <div className={message.toLowerCase().includes('could not') || message.toLowerCase().includes('unable') ? 'error-message' : 'success-message'} role="status">{message}<button onClick={() => setMessage('')} aria-label="Dismiss message"><X size={15} /></button></div>}
       {tab === 'overview' && <><div className="admin-welcome"><div><span className="section-kicker">YOUR DIGITAL HOME</span><h1>Good to see you, {user.username}.</h1><p>Here’s what’s happening in your archive.</p></div><button className="button button-outline" onClick={() => void reload()} disabled={busy}>{busy ? 'Refreshing…' : 'Refresh data'} <Clock3 size={15} /></button></div><div className="admin-stat-grid"><AdminStat icon={<FileText size={18} />} label="Published" value={stats?.published ?? '—'} hint="Visible to visitors" /><AdminStat icon={<PenLine size={18} />} label="Drafts" value={stats?.drafts ?? '—'} hint="Still in the studio" /><AdminStat icon={<Clock3 size={18} />} label="Scheduled" value={stats?.scheduled ?? '—'} hint="Waiting to publish" /><AdminStat icon={<FolderOpen size={18} />} label="Media assets" value={stats?.assets ?? '—'} hint="Stored asset records" /></div><div className="admin-overview-grid"><section className="admin-panel recent-content-panel"><div className="admin-panel-heading"><div><span className="section-kicker">THE ARCHIVE</span><h2>Recent content</h2></div><button className="text-link" onClick={() => setTab('content')}>View all <ArrowRight size={15} /></button></div>{items.slice(0, 5).length ? <div className="admin-recent-list">{items.slice(0, 5).map(item => <div key={item.id} className="admin-recent-row"><div className="admin-recent-icon"><FileText size={17} /></div><div className="admin-recent-meta"><strong>{item.title}</strong><span>{labelType(item.content_type)} · updated {formatDate(item.updated_at)}</span></div><StatusPill status={item.status} /><button className="icon-button" aria-label={`Edit ${item.title}`} onClick={() => editItem(item)}><ArrowUpRight size={16} /></button></div>)}</div> : <div className="admin-empty"><PenLine size={22} /><h3>Your content starts here.</h3><p>Create a draft or publish a first item. Publicly published items become discoverable automatically.</p><button className="button button-primary" onClick={newItem}><Plus size={15} /> Create first item</button></div>}</section><section className="admin-panel quick-actions-panel"><div className="admin-panel-heading"><div><span className="section-kicker">QUICK ACTIONS</span><h2>Keep things moving</h2></div><Command size={19} /></div><button className="quick-action" onClick={newItem}><span className="quick-action-icon"><Plus size={17} /></span><span><strong>Write something new</strong><small>Create an article, link, project, or resource.</small></span><ArrowRight size={16} /></button><button className="quick-action" onClick={() => { setTab('media'); void loadMedia(); }}><span className="quick-action-icon"><Upload size={17} /></span><span><strong>Add a media asset</strong><small>Manage covers and permitted downloads.</small></span><ArrowRight size={16} /></button><Link className="quick-action" to="/" target="_blank"><span className="quick-action-icon"><Globe2 size={17} /></span><span><strong>Preview the public site</strong><small>See the visitor experience.</small></span><ArrowUpRight size={16} /></Link><div className="security-note"><ShieldCheck size={16} /><span>Publishing is controlled by your account permissions. Drafts are not shown to anonymous visitors.</span></div></section></div></>}
       {tab === 'content' && <section className="admin-panel content-management-panel"><div className="admin-panel-heading"><div><span className="section-kicker">CONTENT MANAGER</span><h2>Everything in the archive</h2><p>{items.length} items returned by the API</p></div><button className="button button-primary" onClick={newItem}><Plus size={15} /> New item</button></div><div className="content-table-wrap"><table className="content-table"><thead><tr><th>Title</th><th>Type</th><th>Status</th><th>Visibility</th><th>Updated</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>{items.map(item => <tr key={item.id}><td><div className="table-title"><span className="table-thumb"><FileText size={16} /></span><span><strong>{item.title}</strong><small>/{item.slug}</small></span></div></td><td>{labelType(item.content_type)}</td><td><StatusPill status={item.status} /></td><td><span className="visibility-label">{item.visibility}</span></td><td>{formatDate(item.updated_at)}</td><td><div className="table-actions"><button className="icon-button" onClick={() => editItem(item)} aria-label={`Edit ${item.title}`}><PenLine size={15} /></button><button className="icon-button danger-icon" onClick={() => void removeItem(item)} aria-label={`Delete ${item.title}`}><Trash2 size={15} /></button></div></td></tr>)}</tbody></table>{!items.length && <div className="table-empty"><FolderOpen size={22} /><p>No items have been added yet.</p><button className="button button-outline" onClick={newItem}><Plus size={15} /> Create your first item</button></div>}</div></section>}
@@ -568,11 +573,51 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
     </div>
 
       {tab === 'settings' && <SiteSettingsPanel onMessage={setMessage} />}
+      {tab === 'team' && isAdmin && <TeamManagementPanel isOwner={Boolean(user.is_superuser)} onMessage={setMessage} />}
       {tab === 'collections' && <CollectionsManagerPanel items={items} onMessage={setMessage} />}
       {tab === 'inbox' && <ContactInboxPanel onMessage={setMessage} />}
       {tab === 'analytics' && <AnalyticsPanel onMessage={setMessage} />}
       {tab === 'moderation' && <SuggestionModerationPanel onMessage={setMessage} />}
       {tab === 'comments' && <CommentModerationPanel onMessage={setMessage} />}
+  </div>;
+}
+
+function TeamManagementPanel({ isOwner, onMessage }: { isOwner: boolean; onMessage: (message: string) => void }) {
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<TeamRole>('editor');
+  const [loading, setLoading] = useState(true);
+  const [inviting, setInviting] = useState(false);
+  async function reload() { setLoading(true); try { setMembers(await api.team()); } catch (e) { onMessage(e instanceof Error ? e.message : 'Team list could not load.'); } finally { setLoading(false); } }
+  useEffect(() => { void reload(); }, []);
+  async function invite(e: FormEvent) {
+    e.preventDefault(); setInviting(true);
+    try { const result = await api.inviteTeamMember({ username, email, role }); onMessage(result.detail); setUsername(''); setEmail(''); await reload(); }
+    catch (e) { onMessage(e instanceof Error ? e.message : 'Invitation could not be sent. Check the email provider settings.'); }
+    finally { setInviting(false); }
+  }
+  async function update(member: TeamMember, payload: { role?: TeamRole; is_active?: boolean }) {
+    try { const saved = await api.updateTeamMember(member.id, payload); setMembers(current => current.map(row => row.id === saved.id ? saved : row)); onMessage(`Updated access for ${member.username}.`); }
+    catch (e) { onMessage(e instanceof Error ? e.message : 'Team access could not be updated.'); await reload(); }
+  }
+  return <div className="team-management-layout">
+    <section className="admin-panel"><div className="admin-panel-heading"><div><span className="section-kicker">STAFF ACCESS</span><h2>Invite a teammate</h2><p>A setup link is emailed to the invited member. SMTP must be configured on the server.</p></div><Users size={19} /></div>
+      <form className="settings-form" onSubmit={invite}>
+        <label>Username<input required maxLength={150} value={username} onChange={e => setUsername(e.target.value)} autoComplete="off" /></label>
+        <label>Work email<input required type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" /></label>
+        <label>Access role<select value={role} onChange={e => setRole(e.target.value as TeamRole)}><option value="editor">Editor — content and media</option><option value="moderator">Moderator — comments, suggestions and contact inbox</option><option value="support">Support — overview and analytics</option>{isOwner && <option value="administrator">Administrator — full access</option>}</select></label>
+        <button className="button button-primary" disabled={inviting}>{inviting ? 'Sending invitation…' : 'Invite teammate'} <Mail size={15} /></button>
+      </form>
+    </section>
+    <section className="admin-panel"><div className="admin-panel-heading"><div><span className="section-kicker">TEAM DIRECTORY</span><h2>Current team</h2><p>Least-privilege roles control the APIs as well as which sections appear here.</p></div><button className="button button-outline button-small" onClick={() => void reload()} disabled={loading}>Refresh</button></div>
+      {loading ? <div className="admin-empty">Loading team…</div> : members.map(member => <article className="team-member-row" key={member.id}>
+        <div className="team-member-identity"><span className="admin-avatar">{member.username.slice(0,1).toUpperCase()}</span><div><strong>{member.username}</strong><a href={`mailto:${member.email}`}>{member.email || 'No email address'}</a><small>{member.is_superuser ? 'Owner superuser' : member.is_active ? 'Active staff account' : 'Deactivated account'}</small></div></div>
+        <div className="team-member-controls"><label className="sr-only" htmlFor={`team-role-${member.id}`}>Role for {member.username}</label><select id={`team-role-${member.id}`} value={member.role === 'none' ? 'editor' : member.role} disabled={member.is_superuser || (!isOwner && member.role === 'administrator')} onChange={e => void update(member, { role: e.target.value as TeamRole })}><option value="editor">Editor</option><option value="moderator">Moderator</option><option value="support">Support</option>{isOwner && <option value="administrator">Administrator</option>}</select>
+          {!member.is_superuser && <button className="button button-outline button-small" onClick={() => void update(member, { is_active: !member.is_active })}>{member.is_active ? 'Deactivate' : 'Reactivate'}</button>}
+        </div>
+      </article>)}
+    </section>
   </div>;
 }
 
