@@ -19,12 +19,12 @@
 
 | Role | Hex | CSS Variable |
 |------|-----|--------------|
-| Primary | `#18181B` | `--color-primary` |
+| Primary | `#2563EB` | `--color-primary` |
 | On Primary | `#FFFFFF` | `--color-on-primary` |
-| Secondary | `#3F3F46` | `--color-secondary` |
+| Secondary | `#172554` | `--color-secondary` |
 | On Secondary | `#FFFFFF` | `--color-on-secondary` |
-| Accent/CTA | `#EC4899` | `--color-accent` |
-| On Accent/CTA | `#000000` | `--color-on-accent` |
+| Accent/CTA | `#FACC15` | `--color-accent` |
+| On Accent/CTA | `#172554` | `--color-on-accent` |
 | Background | `#FAFAFA` | `--color-background` |
 | Foreground | `#09090B` | `--color-foreground` |
 | Card | `#FFFFFF` | `--color-card` |
@@ -34,9 +34,9 @@
 | Border | `#E4E4E7` | `--color-border` |
 | Destructive | `#DC2626` | `--color-destructive` |
 | On Destructive | `#FFFFFF` | `--color-on-destructive` |
-| Ring | `#18181B` | `--color-ring` |
+| Ring | `#2563EB` | `--color-ring` |
 
-**Color Notes:** Editorial black + accent pink
+**Color Notes:** Editorial navy and blue with bright yellow accents
 
 ### Typography
 
@@ -82,7 +82,7 @@
 ```css
 /* Primary Button */
 .btn-primary {
-  background: #EC4899;
+  background: #2563EB;
   color: white;
   padding: 12px 24px;
   border-radius: 8px;
