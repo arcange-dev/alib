@@ -8,6 +8,7 @@ from django.conf import settings
 from django.contrib.auth import authenticate, login, logout, get_user_model
 from django.contrib.auth.models import Group
 from django.contrib.auth.tokens import default_token_generator
+from django.core import signing
 from django.core.mail import send_mail
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Max
@@ -28,10 +29,11 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle, ScopedRateThrottle
 from rest_framework.views import APIView
-from .models import AnalyticsEvent, AuditEvent, Category, Collection, ContactMessage, ContentComment, ContentItem, ContentRevision, ContentReaction, CreatorProfile, MediaAsset, NewsletterSubscriber, SiteSettings, Tag, VisitorSuggestion
+from .models import AnalyticsEvent, AuditEvent, Category, Collection, ContactMessage, ContentComment, ContentItem, ContentRevision, ContentReaction, CreatorProfile, MediaAsset, NewsletterSubscriber, SiteSettings, StaffTwoFactor, Tag, VisitorSuggestion
 from .permissions import ADMIN_GROUP, EDITOR_GROUP, MODERATOR_GROUP, SUPPORT_GROUP, IsALIBAdministrator, IsALIBEditor, IsALIBModerator, IsALIBStaff, PublicReadAdminWrite, can_manage_content, can_moderate
 from .serializers import CategorySerializer, CollectionSerializer, ContentCommentSerializer, ContentItemSerializer, ContentRevisionSerializer, CreatorProfileSerializer, MediaAssetSerializer, SiteSettingsSerializer, TagSerializer, VisitorSuggestionSerializer
 from .storage import signed_object_url, upload_object
+from .two_factor import decrypt_secret, encrypt_secret, generate_secret, provisioning_uri, verify_code
 
 
 
@@ -243,8 +245,93 @@ class LoginAPIView(APIView):
         user = authenticate(request, username=username, password=password)
         if user is None or not user.is_active or not user.is_staff:
             return Response({'detail': 'The sign-in details were not accepted.'}, status=status.HTTP_400_BAD_REQUEST)
+        state = StaffTwoFactor.objects.filter(user=user, enabled=True).first()
+        if state:
+            challenge = signing.dumps({'user_id': user.pk, 'purpose': 'staff-login'}, salt='alib-staff-2fa-login')
+            return Response({'detail': 'Password accepted. Enter your authenticator code.', 'requires_two_factor': True, 'challenge': challenge})
         login(request, user)
         return Response({'detail': 'Signed in.', 'user': {'id': user.pk, 'username': user.get_username(), 'email': user.email, 'is_staff': user.is_staff, 'is_superuser': user.is_superuser, 'role': _team_member_payload(user)['role']}})
+
+
+class StaffTwoFactorAPIView(APIView):
+    permission_classes = [IsALIBStaff]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'two_factor'
+
+    def get(self, request):
+        state, _ = StaffTwoFactor.objects.get_or_create(user=request.user)
+        if state.enabled:
+            return Response({'enabled': True, 'secret': '', 'otpauth_uri': ''})
+        if not state.secret_encrypted:
+            state.secret_encrypted = encrypt_secret(generate_secret())
+            state.save(update_fields=['secret_encrypted', 'updated_at'])
+        secret = decrypt_secret(state.secret_encrypted)
+        return Response({'enabled': False, 'secret': secret, 'otpauth_uri': provisioning_uri(secret, request.user.get_username())})
+
+    def post(self, request):
+        action_name = str(request.data.get('action', 'enable')).strip().lower()
+        state = StaffTwoFactor.objects.filter(user=request.user).first()
+        if action_name == 'enable':
+            if state is None or not state.secret_encrypted:
+                raise ValidationError({'detail': 'Open this page to generate a setup secret before enabling two-factor authentication.'})
+            if state.enabled:
+                return Response({'detail': 'Two-factor authentication is already enabled.', 'enabled': True})
+            step = verify_code(decrypt_secret(state.secret_encrypted), request.data.get('code'))
+            if step is None:
+                return Response({'detail': 'The authenticator code was not accepted. Check your device clock and try again.'}, status=status.HTTP_400_BAD_REQUEST)
+            state.enabled = True
+            state.last_verified_step = step
+            state.save(update_fields=['enabled', 'last_verified_step', 'updated_at'])
+            AuditEvent.objects.create(actor=request.user, action='auth.2fa_enabled', object_type='User', object_id=str(request.user.pk))
+            return Response({'detail': 'Two-factor authentication is enabled for future sign-ins.', 'enabled': True})
+        if action_name == 'disable':
+            if not request.user.check_password(request.data.get('password', '')):
+                return Response({'detail': 'The current password was not accepted.'}, status=status.HTTP_400_BAD_REQUEST)
+            if state is None or not state.enabled or not state.secret_encrypted:
+                return Response({'detail': 'Two-factor authentication is not enabled.'}, status=status.HTTP_400_BAD_REQUEST)
+            with transaction.atomic():
+                state = StaffTwoFactor.objects.select_for_update().get(pk=state.pk)
+                step = verify_code(decrypt_secret(state.secret_encrypted), request.data.get('code'))
+                if step is None or step <= state.last_verified_step:
+                    return Response({'detail': 'The authenticator code was not accepted or has already been used.'}, status=status.HTTP_400_BAD_REQUEST)
+                state.enabled = False
+                state.secret_encrypted = ''
+                state.last_verified_step = -1
+                state.save(update_fields=['enabled', 'secret_encrypted', 'last_verified_step', 'updated_at'])
+            AuditEvent.objects.create(actor=request.user, action='auth.2fa_disabled', object_type='User', object_id=str(request.user.pk))
+            return Response({'detail': 'Two-factor authentication is disabled.', 'enabled': False})
+        raise ValidationError({'action': 'Choose enable or disable.'})
+
+
+class TwoFactorLoginVerifyAPIView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = [AnonRateThrottle, ScopedRateThrottle]
+    throttle_scope = 'two_factor'
+
+    def post(self, request):
+        challenge = str(request.data.get('challenge', '')).strip()
+        code = str(request.data.get('code', '')).strip()
+        try:
+            payload = signing.loads(challenge, salt='alib-staff-2fa-login', max_age=300)
+            if payload.get('purpose') != 'staff-login':
+                raise signing.BadSignature('Wrong token purpose.')
+            user = get_user_model().objects.get(pk=payload.get('user_id'), is_active=True, is_staff=True)
+        except (signing.BadSignature, signing.SignatureExpired, get_user_model().DoesNotExist, TypeError, ValueError):
+            return Response({'detail': 'This sign-in challenge has expired. Enter your password again.'}, status=status.HTTP_400_BAD_REQUEST)
+        with transaction.atomic():
+            state = StaffTwoFactor.objects.select_for_update().filter(user=user, enabled=True).first()
+            if state is None or not state.secret_encrypted:
+                return Response({'detail': 'Two-factor authentication is not configured. Sign in again.'}, status=status.HTTP_400_BAD_REQUEST)
+            step = verify_code(decrypt_secret(state.secret_encrypted), code)
+            if step is None or step <= state.last_verified_step:
+                return Response({'detail': 'The authenticator code was not accepted or has already been used.'}, status=status.HTTP_400_BAD_REQUEST)
+            state.last_verified_step = step
+            state.save(update_fields=['last_verified_step', 'updated_at'])
+        login(request, user)
+        AuditEvent.objects.create(actor=user, action='auth.2fa_login', object_type='User', object_id=str(user.pk))
+        return Response({'detail': 'Signed in.', 'user': {'id': user.pk, 'username': user.get_username(), 'email': user.email, 'is_staff': user.is_staff, 'is_superuser': user.is_superuser, 'role': _team_member_payload(user)['role']}})
+
 
 class LogoutAPIView(APIView):
     permission_classes = [IsAuthenticated]
