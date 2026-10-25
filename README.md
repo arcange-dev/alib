@@ -1,32 +1,33 @@
 # ALIB — Creator-first digital home
 
-ALIB is a creator-managed digital library for articles, short notes, useful websites, projects, books, videos, resources, collections, and permitted file downloads. It includes a responsive public React/TypeScript site, a private Creator Studio, a Django REST Framework API, and a Supabase PostgreSQL persistence path.
+ALIB is a creator-managed digital library for articles, notes, websites, projects, books, videos, resources, collections, and permitted file downloads. It includes a React/TypeScript public website, a private Creator Studio, a Django REST Framework API, and Supabase PostgreSQL persistence.
 
 ## Stack
 
 - **Web:** React + TypeScript, Vite, React Router, Tailwind CSS v4, Lucide SVG icons.
-- **API:** Python, Django, Django REST Framework, session-based administrator authentication, OpenAPI via drf-spectacular.
-- **Data:** Django ORM + migrations; Supabase PostgreSQL in production, SQLite for local-only development when `DATABASE_URL` is omitted.
-- **Optional files:** Supabase Storage through server-side upload and short-lived signed download/preview URLs.
-- **Deployment:** Render blueprint in `render.yaml` (a static site and a Python web service).
+- **API:** Python, Django, Django REST Framework, session-based admin authentication, OpenAPI via drf-spectacular.
+- **Data:** Django ORM and migrations; Supabase PostgreSQL in production, SQLite for local development when `DATABASE_URL` is omitted.
+- **Optional files:** Supabase Storage with short-lived signed preview/download URLs.
+- **Hosting:** One Render Python web service serves React and Django from one HTTPS origin.
 
-## Repository map
+## Deploy on Render
 
-```text
-frontend/                 React website and Creator Studio
-backend/                  Django project and REST API
-design-system/alib/       UI/UX Pro Max master system and page overrides
-docs/                     Setup, architecture, security, deployment notes
-supabase/                 Storage setup and database guidance
-render.yaml               Render Blueprint for web + API services
-.env.example              Environment placeholders only
-```
+Follow [the step-by-step deployment guide](docs/deployment.md). In summary:
+
+1. Create a Supabase project and copy its PostgreSQL **Session pooler** connection URL from **Connect**.
+2. Open Render → **New + → Blueprint** and select GitHub repo `arcange-dev/alib`, branch `main`.
+3. Enter the private connection string when Render prompts for `DATABASE_URL`. Render generates `DJANGO_SECRET_KEY`.
+4. Apply the Blueprint and wait for the deployment to succeed.
+5. Open Render Shell and run `cd backend && python manage.py createsuperuser`.
+6. Open the assigned Render URL, then `/admin`, to sign in.
+
+Render serves the website and API from the same host, so the client uses relative `/api/v1` requests and Django's session/CSRF cookies remain same-origin. Leave `VITE_API_URL` blank for this deployment.
 
 ## Local development
 
-Requirements: Node.js 20.19+ (22 LTS recommended), npm, and Python 3.12+.
+Requirements: Node.js 20.19+ (Node 22 LTS recommended), npm, Python 3.12+.
 
-### 1. Backend
+### Backend
 
 ```bash
 cd backend
@@ -39,63 +40,41 @@ python manage.py createsuperuser
 python manage.py runserver 127.0.0.1:8000
 ```
 
-The local API defaults to SQLite only when `DATABASE_URL` is blank and `DJANGO_DEBUG=true`. To use your Supabase database locally, set `DATABASE_URL` in your shell or local environment. Never commit a `.env` file or connection string.
+The API uses SQLite only when `DATABASE_URL` is blank and `DJANGO_DEBUG=true`. Never commit real connection strings or secrets.
 
-### 2. Frontend
+### Frontend
 
-Open a second terminal:
+In a second terminal:
 
 ```bash
 cd frontend
 npm install
-# Optional: create .env.local and set VITE_API_URL=http://127.0.0.1:8000
 npm run dev
 ```
 
-Open `http://localhost:5173`. Creator Studio is at `/admin`. Sign in with the Django **staff/superuser** account created above. The frontend requests a CSRF token and uses Django's server-managed session cookie; it does not store privileged bearer tokens in browser local storage.
+Open `http://localhost:5173`. Vite proxies `/api` to Django on port 8000. Creator Studio is at `/admin`. Sign in with the Django **staff/superuser** account created above.
 
-### 3. Validate locally
+### Tests
 
 ```bash
-# Frontend production build and component smoke test
 cd frontend
 npm run build
 npm test
 
-# Backend migrations, API tests, and Django config checks
 cd ../backend
 python manage.py makemigrations --check --dry-run
 python manage.py check
 python manage.py test
 ```
 
-## Core behaviour
+## Core behaviour and current limits
 
-- Anonymous visitors can only query content with `status=published`, `visibility=public`, and a publication timestamp that is not in the future.
-- The Creator Studio can create, edit, publish, unpublish, archive, and delete content through protected API endpoints. A published public item appears on public lists/detail routes after the API responds with it.
-- Search uses server-backed published content, with client filters and shareable query parameters on `/discover`.
-- Collections reference content through an ordered relationship model. Collection endpoints expose only public collections to anonymous visitors.
-- The contact form stores a private message in PostgreSQL; it does not pretend to send an email. Visitor suggestions enter a pending moderation state.
-- Scheduled status is modeled, but automatic publication requires a configured background scheduler/worker; selecting “Scheduled” is not by itself an automatic publishing guarantee.
-- Media uploads require the optional Supabase Storage environment variables. Uploads are restricted by size/MIME type, use generated object keys, and are private by default. Signed URLs are permission-checked and short-lived.
-- There are no seeded fake analytics, fabricated popularity counts, or prefilled personal details. Configure the profile and publish real content after deployment.
+Anonymous visitors only see public, published content. The Creator Studio can create/edit/publish content, search uses backend data, and visitor suggestions are held for moderation. Contact messages are saved privately, not reported as emailed. Scheduled status is modeled, but automatic publication needs a background scheduler/worker. Uploads need optional Supabase Storage variables; files are private by default and signed URLs are permission-checked.
 
-## Environment variables
+Advanced YouTube/Instagram metadata ingestion, newsletter-provider integration, analytics reporting, a background scheduler, rich WYSIWYG editing, full profile/appearance settings UI, and browser end-to-end tests remain follow-on work. No fake analytics or invented personal profile details are seeded.
 
-See [`.env.example`](.env.example), [deployment guide](docs/deployment.md), [security notes](docs/security.md), and [storage setup](supabase/README.md). For production, the API requires `DJANGO_SECRET_KEY`, `DATABASE_URL`, allowed host and origin configuration, and `DJANGO_DEBUG=false`. Keep Supabase service-role credentials exclusively on the backend.
+See [deployment instructions](docs/deployment.md), [architecture](docs/architecture.md), [security](docs/security.md), and [Supabase Storage setup](supabase/README.md).
 
-## Admin options
+## UI/UX Pro Max
 
-- React Creator Studio: `https://your-site.example/admin`
-- Django's built-in administration: `https://your-api.example/django-admin/`
-- OpenAPI schema: `https://your-api.example/api/schema/`
-- Swagger UI: `https://your-api.example/api/docs/`
-- Health check: `https://your-api.example/health/`
-
-## UI/UX Pro Max v2.15.0
-
-The actual skill ZIP from the conversation library was extracted and its search tool executed. The selected direction is a grid-led Swiss Modernism/editorial system with a restrained black/white foundation, pink accent, Newsreader + Roboto typography, semantic color tokens, accessible SVG icons, responsive content cards, visible focus states, and reduced-motion support. Search evidence and page-specific design overrides live under `design-system/alib/` and `docs/uiux-pro-max/`. See [the search log](docs/uiux-pro-max/search-log.md).
-
-## Known first-iteration limits
-
-This is the first implementation foundation, not a declaration that every item in the full product brief is finished. Advanced integrations such as YouTube/Instagram metadata ingestion, newsletter provider integration, analytics reporting, a background scheduler, a rich WYSIWYG editor, full profile/appearance settings UI, and automated browser end-to-end tests remain follow-on work. External metadata retrieval must be added behind SSRF-safe server-side fetch rules; do not fetch arbitrary URLs from the browser/server without validation.
+The supplied skill's search tool was executed. The selected direction is a grid-led Swiss Modernism/editorial system with a restrained monochrome foundation, pink accent, Newsreader + Roboto typography, accessible SVG icons, visible focus states, and reduced motion. See `design-system/alib/` and `docs/uiux-pro-max/search-log.md`.

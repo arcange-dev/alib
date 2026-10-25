@@ -46,3 +46,33 @@ jobs:
         run: python manage.py migrate --noinput
       - name: Test API and privacy rules
         run: python manage.py test --verbosity 2
+  render-package:
+    name: Combined Render build and SPA smoke test
+    runs-on: ubuntu-latest
+    env:
+      DJANGO_DEBUG: "true"
+      TIME_ZONE: Africa/Kigali
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+      - name: Install frontend dependencies
+        run: npm --prefix frontend install --no-audit --no-fund
+      - name: Build React bundle
+        run: npm --prefix frontend run build
+      - name: Package frontend for WhiteNoise
+        run: |
+          mkdir -p backend/static/frontend
+          cp -R frontend/dist/. backend/static/frontend/
+      - name: Collect static assets and smoke-test deployed routes
+        run: |
+          cd backend
+          python manage.py collectstatic --noinput
+          python manage.py check
+          python manage.py shell -c "from django.test import Client; c=Client(); page=c.get('/discover'); assert page.status_code == 200, page.status_code; assert b'id=\"root\"' in page.content; api=c.get('/api/v1/content/'); assert api.status_code == 200, api.status_code; print('Render SPA route and public API smoke tests passed.')"

@@ -1,6 +1,9 @@
 import type { Category, Collection, ContentItem, CreatorProfile, HomePayload, MediaAsset, PageResult } from './types';
 
-const API_ROOT = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '') + '/api/v1';
+// Empty VITE_API_URL means same-origin API requests (the recommended Render setup).
+// For a separately hosted frontend, set it to the API origin without /api/v1.
+const API_ORIGIN = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
+const API_ROOT = API_ORIGIN + '/api/v1';
 let csrfToken = '';
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
