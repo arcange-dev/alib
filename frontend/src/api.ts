@@ -141,7 +141,7 @@ export interface AdminUser { id: number; username: string; email: string; is_sta
 export interface TeamMember { id: number; username: string; email: string; is_active: boolean; is_superuser: boolean; role: TeamRole | 'none'; last_login: string | null; }
 export interface AdminStats { published: number; drafts: number; scheduled: number; assets: number; suggestions_pending: number; }
 
-export interface SiteSettings { site_title: string; logo_url: string; favicon_url: string; seo_description: string; homepage_sections: string[]; theme_preferences: Record<string, string>; updated_at?: string; }
+export interface SiteSettings { site_title: string; logo_url: string; favicon_url: string; seo_description: string; homepage_sections: string[]; theme_preferences: Record<string, string>; owner_name: string; copyright_text: string; site_copy: Record<string, string>; updated_at?: string; }
 export interface ContentRevision { id: number; revision_number: number; snapshot: Record<string, unknown>; editor_username: string; created_at: string; }
 export interface ContentComment { id: number; item_id?: number; name: string; email?: string; body: string; status: 'pending' | 'approved' | 'rejected'; created_at: string; }
 export interface ContactInboxItem { id: number; name: string; email: string; message: string; reviewed: boolean; archived: boolean; created_at: string; }

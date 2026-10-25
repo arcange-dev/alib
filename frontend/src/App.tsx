@@ -1,4 +1,4 @@
-import { Fragment, useDeferredValue, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { createContext, Fragment, useContext, useDeferredValue, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, NavLink, Route, Routes, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowDown, ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, Bookmark, Check, ChevronDown, CircleHelp, Clock3, Command,
@@ -9,10 +9,24 @@ import { api, type AdminStats, type AdminUser, type AnalyticsSummary, type Audit
 import type { Category, Collection, ContentItem, ContentType, CreatorProfile, HomePayload, MediaAsset, Tag } from './types';
 
 const fallbackProfile: CreatorProfile = {
-  display_name: 'Your name', headline: 'A home for ideas worth keeping.',
+  display_name: 'Mukamyi Izere Arcange', headline: 'A home for ideas worth keeping.',
   biography: 'A personal space for work in progress, useful links, thoughtful notes, and the things worth returning to.',
   avatar_url: '', location: '', social_links: {},
 };
+
+const SiteSettingsContext = createContext<SiteSettings | null>(null);
+function useSiteSettings() { return useContext(SiteSettingsContext); }
+function siteCopy(settings: SiteSettings | null | undefined, key: string, fallback: string): string {
+  const value = settings?.site_copy?.[key];
+  return typeof value === 'string' && value.trim() ? value : fallback;
+}
+function renderCopyright(settings: SiteSettings | null | undefined): string {
+  const year = String(new Date().getFullYear());
+  const owner = settings?.owner_name?.trim() || 'Mukamyi Izere Arcange';
+  const template = settings?.copyright_text?.trim() || '© {year} {owner_name}. All rights reserved.';
+  const value = template.replace(/\\{year\\}/gi, year).replace(/\\{owner_name\\}/gi, owner);
+  return value.replace(/(©\\s*)(?:19|20)\\d{2}/, `$1${year}`);
+}
 
 function safeStorageGet(key: string): string | null {
   try { return window.localStorage.getItem(key); } catch { return null; }
@@ -37,6 +51,7 @@ function App() {
   const [dark, setDark] = useState(() => safeStorageGet('alib-theme') === 'dark');
   const [mobileNav, setMobileNav] = useState(false);
   const location = useLocation();
+  const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
   useEffect(() => {
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
     safeStorageSet('alib-theme', dark ? 'dark' : 'light');
@@ -63,6 +78,7 @@ function App() {
     setMeta('name', 'twitter:title', defaultTitle);
     void api.analytics('page_view', location.pathname).catch(() => {});
     api.settings().then(site => {
+      setSiteSettings(site);
       const description = site.seo_description || 'A considered home for ideas, work, and curiosity.';
       setMeta('name', 'description', description);
       setMeta('property', 'og:description', description);
@@ -77,10 +93,15 @@ function App() {
     }).catch(() => {});
   }, [location.pathname]);
   useEffect(() => setMobileNav(false), []);
+  useEffect(() => {
+    const handler = (event: Event) => { const updated = (event as CustomEvent<SiteSettings>).detail; if (updated) setSiteSettings(updated); };
+    window.addEventListener('alib-site-settings-updated', handler);
+    return () => window.removeEventListener('alib-site-settings-updated', handler);
+  }, []);
   // The Creator Studio is a private workspace with its own chrome; the public
   // site header and footer stay on visitor-facing routes only.
   const isAdminRoute = location.pathname.startsWith('/admin');
-  return <div className="app-shell">
+  return <SiteSettingsContext.Provider value={siteSettings}><div className="app-shell">
     <a className="skip-link" href="#main-content">Skip to content</a>
     {!isAdminRoute && <SiteHeader dark={dark} setDark={setDark} mobileNav={mobileNav} setMobileNav={setMobileNav} />}
     {!isAdminRoute && mobileNav && <button type="button" className="mobile-nav-overlay" onClick={() => setMobileNav(false)} aria-label="Close navigation menu" />}
@@ -107,11 +128,12 @@ function App() {
       </Routes>
     </main>
     {!isAdminRoute && <SiteFooter />}
-  </div>;
+  </div></SiteSettingsContext.Provider>;
 }
 
 function SiteHeader({ dark, setDark, mobileNav, setMobileNav }: { dark: boolean; setDark: (v: boolean) => void; mobileNav: boolean; setMobileNav: (v: boolean) => void }) {
   const location = useLocation();
+  const settings = useSiteSettings();
   const [siteTitle, setSiteTitle] = useState('ALIB');
   const [logoUrl, setLogoUrl] = useState('');
   useEffect(() => setMobileNav(false), [location.pathname, setMobileNav]);
@@ -120,7 +142,7 @@ function SiteHeader({ dark, setDark, mobileNav, setMobileNav }: { dark: boolean;
     <div className="header-inner">
       <Link to="/" className="brand" aria-label={`${siteTitle} home`}>{logoUrl ? <img className="brand-logo" src={logoUrl} alt="" /> : <span className="brand-mark">A<span>.</span></span>}<span className="brand-word">ALIB</span></Link>
       <nav className={`primary-nav ${mobileNav ? 'is-open' : ''}`} aria-label="Main navigation">
-        {navItems.map(({ to, label }) => <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>{label}</NavLink>)}
+        {navItems.map(({ to, label }) => <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>{siteCopy(settings, ({ '/': 'nav.home', '/discover': 'nav.discover', '/posts': 'nav.writing', '/favorites': 'nav.favorites', '/projects': 'nav.projects', '/resources': 'nav.resources' } as Record<string, string>)[to] || '', label)}</NavLink>)}
       </nav>
       <div className="header-actions">
         <Link to="/discover" className="icon-button search-shortcut" aria-label="Search content"><Search size={18} /><span>Search</span></Link>
@@ -133,16 +155,18 @@ function SiteHeader({ dark, setDark, mobileNav, setMobileNav }: { dark: boolean;
 }
 
 function SiteFooter() {
+  const settings = useSiteSettings();
   return <footer className="site-footer"><div className="footer-inner">
     <Link to="/" className="brand footer-brand"><span className="brand-mark">A<span>.</span></span><span className="brand-word">ALIB</span></Link>
-    <p>A small home for a growing digital world.</p>
-    <div className="footer-links"><Link to="/about">About</Link><Link to="/contact">Contact</Link><Link to="/suggest">Recommend</Link><Link to="/privacy">Privacy</Link><a href="/feed.xml">RSS feed <ArrowUpRight size={13} /></a><a href="/atom.xml">Atom feed <ArrowUpRight size={13} /></a><Link to="/admin">Creator Studio <ArrowUpRight size={13} /></Link></div>
+    <p>{siteCopy(settings, 'footer.description', 'A small home for a growing digital world.')}</p>
+    <div className="footer-links"><Link to="/about">{siteCopy(settings, 'nav.about', 'About')}</Link><Link to="/contact">{siteCopy(settings, 'nav.contact', 'Contact')}</Link><Link to="/suggest">{siteCopy(settings, 'nav.recommend', 'Recommend')}</Link><Link to="/privacy">Privacy</Link><a href="/feed.xml">RSS feed <ArrowUpRight size={13} /></a><a href="/atom.xml">Atom feed <ArrowUpRight size={13} /></a><Link to="/admin">Creator Studio <ArrowUpRight size={13} /></Link></div>
     <NewsletterSignup />
-    <span className="footer-year">© {new Date().getFullYear()} ALIB</span>
+    <span className="footer-year">{renderCopyright(settings)}</span>
   </div></footer>;
 }
 
 function NewsletterSignup() {
+  const settings = useSiteSettings();
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
@@ -152,7 +176,7 @@ function NewsletterSignup() {
     catch (e) { setStatus(e instanceof Error ? e.message : 'Subscription could not be submitted.'); }
     finally { setBusy(false); }
   }
-  return <form className="newsletter-signup" onSubmit={submit}><label htmlFor="newsletter-email">Occasional notes from the archive</label><div><input id="newsletter-email" type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="Your email address" autoComplete="email" /><button className="button button-primary button-small" disabled={busy}>{busy ? 'Sending…' : 'Subscribe'}</button></div>{status && <p role="status">{status}</p>}</form>;
+  return <form className="newsletter-signup" onSubmit={submit}><label htmlFor="newsletter-email">{siteCopy(settings, 'footer.newsletter_label', 'Occasional notes from the archive')}</label><div><input id="newsletter-email" type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="Your email address" autoComplete="email" /><button className="button button-primary button-small" disabled={busy}>{busy ? 'Sending…' : 'Subscribe'}</button></div>{status && <p role="status">{status}</p>}</form>;
 }
 
 function useHome() {
