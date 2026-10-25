@@ -811,3 +811,35 @@ kbd { padding: 2px 5px; color: var(--muted); background: var(--surface-soft); bo
 .team-member-controls select { max-width: 130px; padding: 7px 8px; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; font-size: 10px; }
 @media (max-width: 900px) { .team-management-layout { grid-template-columns: 1fr; } }
 @media (max-width: 620px) { .team-member-row { align-items: flex-start; flex-direction: column; } .team-member-controls { width: 100%; } .team-member-controls select { flex: 1; max-width: none; } }
+
+
+/* Moderation, newsletter, audit and expanded discovery controls */
+.audit-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; padding: 18px 20px; border-bottom: 1px solid var(--border); }
+.audit-filters label, .newsletter-admin-controls label { display: flex; flex-direction: column; gap: 6px; min-width: 160px; color: var(--muted); font-size: 10px; }
+.audit-filters input, .newsletter-admin-controls select { min-height: 34px; padding: 8px 10px; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; font-size: 11px; }
+.audit-event-row { padding: 15px 0; border-bottom: 1px solid var(--border); }
+.audit-event-row:last-child { border-bottom: 0; }
+.audit-event-row > div { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.audit-event-row strong { color: var(--text-strong); font-size: 12px; }
+.audit-event-row span { color: var(--muted); font-size: 10px; overflow-wrap: anywhere; }
+.audit-event-row details { margin-top: 5px; color: var(--muted); font-size: 10px; }
+.audit-event-row summary { cursor: pointer; }
+.audit-event-row pre { max-height: 260px; overflow: auto; padding: 12px; background: var(--surface-soft); border: 1px solid var(--border); border-radius: 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.newsletter-admin-controls { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; padding: 18px 20px; }
+.subscriber-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--border); }
+.subscriber-row:last-child { border-bottom: 0; }
+.subscriber-row > div:first-child { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.subscriber-row strong { font-size: 12px; overflow-wrap: anywhere; }
+.subscriber-row span, .subscriber-row time { color: var(--muted); font-size: 9px; }
+.bulk-moderation-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; padding: 14px 20px; border-bottom: 1px solid var(--border); }
+.bulk-moderation-toolbar > span { color: var(--muted); font-size: 10px; margin-right: auto; }
+.moderation-select { display: flex; align-items: center; padding-top: 2px; }
+.moderation-select input { width: 16px; height: 16px; accent-color: var(--accent); }
+.moderation-select input:focus-visible, .bulk-moderation-toolbar input:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 2px; }
+.discover-extra-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 18px; margin: 0 0 22px; }
+.discover-extra-filters > label:not(.check-field) { display: flex; flex-direction: column; gap: 5px; color: var(--muted); font-size: 10px; }
+.discover-extra-filters input[type="date"] { min-height: 37px; padding: 7px 10px; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 7px; font-size: 11px; }
+.discover-extra-filters .check-field { min-height: 37px; display: flex; align-items: center; gap: 8px; padding: 0 9px; border: 1px solid var(--border); border-radius: 7px; font-size: 10px; }
+.discover-extra-filters .check-field input { accent-color: var(--accent); }
+.settings-form select[multiple] { min-height: 110px; }
+@media (max-width: 600px) { .audit-filters, .newsletter-admin-controls { align-items: stretch; flex-direction: column; } .audit-filters label, .newsletter-admin-controls label { min-width: 0; } .bulk-moderation-toolbar > span { margin-right: 0; } .subscriber-row { align-items: flex-start; flex-direction: column; } }
