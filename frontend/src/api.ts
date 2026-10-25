@@ -98,6 +98,7 @@ export const api = {
   disableTwoFactor: (code: string, password: string) => request<{ detail: string; enabled: boolean }>('/auth/2fa/', { method: 'POST', body: JSON.stringify({ action: 'disable', code, password }) }),
   logout: async () => { await api.csrf(); return request<{ detail: string }>('/auth/logout/', { method: 'POST', body: JSON.stringify({}) }); },
   me: async () => { await api.csrf(); return request<AdminUser>('/auth/me/'); },
+  session: () => request<{ authenticated: boolean; user?: AdminUser }>('/auth/session/'),
   adminStats: () => request<AdminStats>('/admin/stats/'),
   adminContent: (params: Record<string, string> = {}) => {
     const query = new URLSearchParams(params);

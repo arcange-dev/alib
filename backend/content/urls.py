@@ -4,7 +4,7 @@ from .views import (
     StaffTwoFactorAPIView, TwoFactorLoginVerifyAPIView,
     AdminAnalyticsAPIView, AdminAuditEventAPIView, AdminNewsletterAPIView, AdminTeamAPIView, AdminTeamMemberAPIView, ContentReactionAPIView, AdminMediaViewSet, AdminProfileAPIView, AdminSiteSettingsAPIView, AdminStatsAPIView, AnalyticsEventAPIView, CategoryViewSet, CollectionViewSet,
     ContactAPIView, ContactInboxAPIView, ContentCommentViewSet, ContentItemViewSet, CsrfAPIView, CurrentUserAPIView, HomeAPIView, LoginAPIView,
-    LogoutAPIView, MediaSignedUrlAPIView, MediaUploadAPIView, NewsletterConfirmAPIView, NewsletterSubscribeAPIView, NewsletterUnsubscribeAPIView, PasswordResetConfirmAPIView, PasswordResetRequestAPIView, ScheduledPublishTriggerAPIView, ProfileAPIView, PublicSiteSettingsAPIView, TagViewSet,
+    LogoutAPIView, MediaSignedUrlAPIView, SessionAPIView, MediaUploadAPIView, NewsletterConfirmAPIView, NewsletterSubscribeAPIView, NewsletterUnsubscribeAPIView, PasswordResetConfirmAPIView, PasswordResetRequestAPIView, ScheduledPublishTriggerAPIView, ProfileAPIView, PublicSiteSettingsAPIView, TagViewSet,
     VisitorSuggestionViewSet,
 )
 
@@ -45,6 +45,7 @@ urlpatterns = [
     path('auth/2fa/verify-login/', TwoFactorLoginVerifyAPIView.as_view(), name='verify-two-factor-login'),
     path('auth/logout/', LogoutAPIView.as_view(), name='logout'),
     path('auth/me/', CurrentUserAPIView.as_view(), name='current-user'),
+    path('auth/session/', SessionAPIView.as_view(), name='session'),
     path('auth/password-reset/', PasswordResetRequestAPIView.as_view(), name='password-reset-request'),
     path('auth/password-reset/confirm/', PasswordResetConfirmAPIView.as_view(), name='password-reset-confirm'),
     path('content/<int:item_id>/reactions/', ContentReactionAPIView.as_view(), name='content-reactions'),

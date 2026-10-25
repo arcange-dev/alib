@@ -49,6 +49,26 @@ class SessionAuthenticationTests(TestCase):
         response = self.client.post('/api/v1/auth/login/', {'username': 'visitor', 'password': 'Sufficiently-long-pass-123!'}, format='json')
         self.assertEqual(response.status_code, 400)
 
+    def test_session_endpoint_reports_anonymous_and_staff_without_403(self):
+        response = self.client.get('/api/v1/auth/session/')
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data['authenticated'])
+
+        staff = get_user_model().objects.create_user(
+            username='staffer', email='staffer@example.com', password='Sufficiently-long-pass-123!', is_staff=True)
+        self.client.force_login(staff)
+        response = self.client.get('/api/v1/auth/session/')
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['authenticated'])
+        self.assertEqual(response.data['user']['username'], 'staffer')
+        self.assertEqual(response.data['user']['is_staff'], True)
+
+        visitor = get_user_model().objects.create_user(username='plain', password='Sufficiently-long-pass-123!')
+        self.client.force_login(visitor)
+        response = self.client.get('/api/v1/auth/session/')
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data['authenticated'])
+
 
 class BootstrapAdminCommandTests(TestCase):
     def _env(self, username="", email="", password=""):

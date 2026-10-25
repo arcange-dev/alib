@@ -399,7 +399,23 @@ class CurrentUserAPIView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request):
         user = request.user
-        return Response({'id': user.pk, 'username': user.get_username(), 'email': user.email, 'is_staff': user.is_staff, 'role': _team_member_payload(user)['role']})
+        return Response(_session_user_payload(user))
+
+class SessionAPIView(APIView):
+    """Report the sign-in state without failing for anonymous visitors.
+
+    The admin shell probes this endpoint while the page loads; answering 200
+    with authenticated=false avoids a console error for signed-out visitors.
+    """
+    permission_classes = [AllowAny]
+    def get(self, request):
+        user = request.user
+        if not getattr(user, 'is_authenticated', False) or not user.is_staff:
+            return Response({'authenticated': False})
+        return Response({'authenticated': True, 'user': _session_user_payload(user)})
+
+def _session_user_payload(user):
+    return {'id': user.pk, 'username': user.get_username(), 'email': user.email, 'is_staff': user.is_staff, 'role': _team_member_payload(user)['role']}
 
 class AdminStatsAPIView(APIView):
     permission_classes = [IsALIBStaff]

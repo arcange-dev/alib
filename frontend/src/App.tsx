@@ -693,7 +693,7 @@ function ResetPasswordPage() {
 
 function AdminPage() {
   const [user, setUser] = useState<AdminUser | null>(null); const [checking, setChecking] = useState(true); const [authError, setAuthError] = useState('');
-  useEffect(() => { api.me().then(setUser).catch(() => setUser(null)).finally(() => setChecking(false)); }, []);
+  useEffect(() => { api.session().then(result => setUser(result.authenticated && result.user ? result.user : null)).catch(() => setUser(null)).finally(() => setChecking(false)); }, []);
   async function signOut() { try { await api.logout(); } finally { setUser(null); } }
   if (checking) return <div className="admin-page"><div className="admin-loading"><div className="spinner" /><p>Checking your session…</p></div></div>;
   if (!user) return <AdminLogin onLogin={setUser} error={authError} setError={setAuthError} />;
