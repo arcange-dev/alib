@@ -68,10 +68,6 @@ class StaffTwoFactorTests(TestCase):
     def test_bad_authenticator_code_does_not_enable_two_factor(self):
         self.client.force_authenticate(user=self.user)
         self.client.get('/api/v1/auth/2fa/')
-        response = self.client.post('/api/v1/auth/2fa/', {'action': 'enable', 'code': '000000'}, format='json')
-        if response.status_code == 200:
-            # In the extraordinarily unlikely event that 000000 is the correct TOTP, this test
-            # cannot assert rejection; use a deliberately non-six-digit code for determinism.
-            response = self.client.post('/api/v1/auth/2fa/', {'action': 'enable', 'code': 'invalid'}, format='json')
+        response = self.client.post('/api/v1/auth/2fa/', {'action': 'enable', 'code': 'invalid'}, format='json')
         self.assertEqual(response.status_code, 400)
         self.assertFalse(StaffTwoFactor.objects.get(user=self.user).enabled)
