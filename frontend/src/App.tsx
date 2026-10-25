@@ -2,10 +2,10 @@ import { Fragment, useDeferredValue, useEffect, useRef, useState, type FormEvent
 import { Link, NavLink, Route, Routes, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowDown, ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, Bookmark, Check, ChevronDown, CircleHelp, Clock3, Command,
-  Compass, ExternalLink, FileText, Filter, FolderOpen, Globe2, Heart, History, Inbox, Layers3, Link2, LockKeyhole,
+  Compass, ExternalLink, FileText, Filter, FolderOpen, Globe2, Heart, History, Inbox, Layers3, Link2, LockKeyhole, ChevronLeft, ChevronRight,
   LogOut, Mail, Menu, MessageCircle, Moon, PenLine, Plus, Search, Share2, ShieldCheck, Sparkles, Sun, ThumbsUp, Trash2, Upload, Video, X, BarChart3, Settings2, Users, UserRound, ClipboardList, AtSign,
 } from 'lucide-react';
-import { api, type AdminStats, type AdminUser, type AnalyticsSummary, type AuditEventItem, type ContactInboxItem, type ContentComment, type ContentRevision, type NewsletterSubscriberItem, type SiteSettings, type TeamMember, type TeamRole } from './api';
+import { api, type AdminStats, type AdminUser, type AnalyticsSummary, type AuditEventItem, type ContactInboxItem, type ContentComment, type ContentRevision, type NewsletterSubscriberItem, type SiteSettings, type TeamMember, type TeamRole, type TwoFactorStatus } from './api';
 import type { Category, Collection, ContentItem, ContentType, CreatorProfile, HomePayload, MediaAsset, Tag } from './types';
 
 const fallbackProfile: CreatorProfile = {
@@ -13,6 +13,16 @@ const fallbackProfile: CreatorProfile = {
   biography: 'A personal space for work in progress, useful links, thoughtful notes, and the things worth returning to.',
   avatar_url: '', location: '', social_links: {},
 };
+
+function safeStorageGet(key: string): string | null {
+  try { return window.localStorage.getItem(key); } catch { return null; }
+}
+function safeStorageSet(key: string, value: string): void {
+  try { window.localStorage.setItem(key, value); } catch { /* Storage is optional; keep the app usable when blocked or full. */ }
+}
+function safeStorageRemove(key: string): void {
+  try { window.localStorage.removeItem(key); } catch { /* Ignore unavailable browser storage. */ }
+}
 
 const navItems = [
   { to: '/', label: 'Home', icon: Compass },
@@ -24,12 +34,12 @@ const navItems = [
 ];
 
 function App() {
-  const [dark, setDark] = useState(() => localStorage.getItem('alib-theme') === 'dark');
+  const [dark, setDark] = useState(() => safeStorageGet('alib-theme') === 'dark');
   const [mobileNav, setMobileNav] = useState(false);
   const location = useLocation();
   useEffect(() => {
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-    localStorage.setItem('alib-theme', dark ? 'dark' : 'light');
+    safeStorageSet('alib-theme', dark ? 'dark' : 'light');
   }, [dark]);
   useEffect(() => {
     const labels: Record<string, string> = { '/': 'Digital Home', '/discover': 'Discover', '/posts': 'Writing', '/favorites': 'Reading List', '/projects': 'Projects', '/resources': 'Resources', '/collections': 'Collections', '/about': 'About', '/contact': 'Contact', '/suggest': 'Recommend', '/admin': 'Creator Studio' };
@@ -44,6 +54,9 @@ function App() {
     if (!canonical) { canonical = document.createElement('link'); canonical.rel = 'canonical'; document.head.appendChild(canonical); }
     canonical.href = canonicalUrl;
     document.title = defaultTitle;
+    let robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
+    if (!robots) { robots = document.createElement('meta'); robots.name = 'robots'; document.head.appendChild(robots); }
+    robots.content = location.pathname.startsWith('/admin') || location.pathname.startsWith('/reset-password') ? 'noindex,nofollow' : 'index,follow';
     setMeta('property', 'og:url', canonicalUrl);
     setMeta('property', 'og:title', defaultTitle);
     setMeta('name', 'twitter:card', 'summary_large_image');
@@ -120,7 +133,7 @@ function SiteFooter() {
   return <footer className="site-footer"><div className="footer-inner">
     <Link to="/" className="brand footer-brand"><span className="brand-mark">A<span>.</span></span><span className="brand-word">ALIB</span></Link>
     <p>A small home for a growing digital world.</p>
-    <div className="footer-links"><Link to="/about">About</Link><Link to="/contact">Contact</Link><Link to="/suggest">Recommend</Link><Link to="/privacy">Privacy</Link><a href="/feed.xml">RSS feed <ArrowUpRight size={13} /></a><Link to="/admin">Creator Studio <ArrowUpRight size={13} /></Link></div>
+    <div className="footer-links"><Link to="/about">About</Link><Link to="/contact">Contact</Link><Link to="/suggest">Recommend</Link><Link to="/privacy">Privacy</Link><a href="/feed.xml">RSS feed <ArrowUpRight size={13} /></a><a href="/atom.xml">Atom feed <ArrowUpRight size={13} /></a><Link to="/admin">Creator Studio <ArrowUpRight size={13} /></Link></div>
     <NewsletterSignup />
     <span className="footer-year">© {new Date().getFullYear()} ALIB</span>
   </div></footer>;
@@ -142,7 +155,26 @@ function NewsletterSignup() {
 function useHome() {
   const [data, setData] = useState<HomePayload | null>(null);
   const [error, setError] = useState('');
-  useEffect(() => { api.home().then(setData).catch(e => setError(e instanceof Error ? e.message : 'The content service is unavailable.')); }, []);
+  useEffect(() => {
+    let cancelled = false;
+    const HOME_RETRIES = 3;
+    const load = async (attempt: number): Promise<void> => {
+      try {
+        const payload = await api.home();
+        if (!cancelled) { setData(payload); setError(''); }
+      } catch (e) {
+        // The hosting service can drop the first request while the instance
+        // wakes up; retry briefly before showing the empty archive state.
+        if (!cancelled && attempt < HOME_RETRIES) {
+          window.setTimeout(() => void load(attempt + 1), 2500 * (attempt + 1));
+          return;
+        }
+        if (!cancelled) setError(e instanceof Error ? e.message : 'The content service is unavailable.');
+      }
+    };
+    void load(0);
+    return () => { cancelled = true; };
+  }, []);
   return { data, error };
 }
 
@@ -320,12 +352,12 @@ const BOOKMARKS_KEY = 'alib-bookmarks';
 
 function readBookmarks(): number[] {
   try {
-    const saved = JSON.parse(localStorage.getItem(BOOKMARKS_KEY) || '[]');
+    const saved = JSON.parse(safeStorageGet(BOOKMARKS_KEY) || '[]');
     return Array.isArray(saved) ? saved.filter((id): id is number => Number.isInteger(id)) : [];
   } catch { return []; }
 }
 function writeBookmarks(ids: number[]) {
-  try { localStorage.setItem(BOOKMARKS_KEY, JSON.stringify([...new Set(ids)])); window.dispatchEvent(new Event('alib-bookmarks-changed')); } catch { /* Storage may be disabled; the page remains usable. */ }
+  try { safeStorageSet(BOOKMARKS_KEY, JSON.stringify([...new Set(ids)])); window.dispatchEvent(new Event('alib-bookmarks-changed')); } catch { /* Storage may be disabled; the page remains usable. */ }
 }
 function BookmarkButton({ itemId, compact = false }: { itemId: number; compact?: boolean }) {
   const [saved, setSaved] = useState(() => readBookmarks().includes(itemId));
@@ -355,10 +387,42 @@ function FavoritesPage() {
 }
 
 function LibraryPage({ title, description, types }: { title: string; description: string; types: ContentType[] }) {
-  const [items, setItems] = useState<ContentItem[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState('');
-  useEffect(() => { api.content({ page_size: '100' }).then(data => setItems(data.results.filter(item => types.includes(item.content_type)))).catch(e => setError(e instanceof Error ? e.message : 'Unable to load content.')).finally(() => setLoading(false)); }, [types.join(',')]);
+  const [items, setItems] = useState<ContentItem[]>([]);
+  const [nextUrl, setNextUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState('');
+  const typeFilter = types.join(',');
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true); setError(''); setItems([]); setNextUrl(null);
+    api.content({ page_size: '24', content_type: typeFilter })
+      .then(data => {
+        if (cancelled) return;
+        setItems(data.results); setNextUrl(data.next);
+      })
+      .catch(err => { if (!cancelled) setError(err instanceof Error ? err.message : 'Unable to load content.'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [typeFilter]);
+
+  async function loadMore() {
+    if (!nextUrl || loadingMore) return;
+    setLoadingMore(true); setError('');
+    try {
+      const url = new URL(nextUrl, window.location.origin);
+      const page = await api.content(Object.fromEntries(url.searchParams.entries()));
+      setItems(current => [...current, ...page.results]); setNextUrl(page.next);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'More content could not load.');
+    } finally { setLoadingMore(false); }
+  }
+
   return <div className="page-wrap section-wrap page-enter"><div className="page-hero page-hero-small"><div className="eyebrow">THE ARCHIVE <span className="eyebrow-rule" /></div><h1>{title}<span className="title-period">.</span></h1><p>{description}</p></div>
-    {loading ? <LoadingRows /> : error ? <EmptyState title="The archive is not connected yet." body="Start the Django API and connect Supabase to load public items." /> : items.length ? <ContentGrid items={items} compact /> : <EmptyState title={`No ${title.toLowerCase()} published yet.`} body="When the creator publishes content in Creator Studio, it will show up here automatically." action={<Link className="button button-outline" to="/admin">Open Creator Studio <ArrowUpRight size={15} /></Link>} />}
+    {loading ? <LoadingRows /> : error && !items.length ? <EmptyState title={`${title} could not load.`} body={error} /> : items.length ? <ContentGrid items={items} compact /> : <EmptyState title={`No ${title.toLowerCase()} published yet.`} body="When the creator publishes content in Creator Studio, it will show up here automatically." action={<Link className="button button-outline" to="/admin">Open Creator Studio <ArrowUpRight size={15} /></Link>} />}
+    {error && items.length > 0 && <InlineNotice text={error} />}
+    {nextUrl && items.length > 0 && <div className="discover-load-more"><button className="button button-outline" onClick={() => void loadMore()} disabled={loadingMore}>{loadingMore ? 'Loading more…' : `Load more ${title.toLowerCase()}`} <ArrowDown size={15} /></button></div>}
   </div>;
 }
 
@@ -405,9 +469,22 @@ function ContentDetailPage() {
     setName('twitter:title', item.title);
     setName('twitter:description', item.summary || 'A considered entry from the ALIB archive.');
     if (item.cover_image_url) setProperty('og:image', item.cover_image_url);
+    else document.querySelector('meta[property="og:image"]')?.remove();
     let robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
     if (!robots) { robots = document.createElement('meta'); robots.name = 'robots'; document.head.appendChild(robots); }
     robots.content = item.status === 'published' && item.visibility === 'public' ? 'index,follow' : 'noindex,nofollow';
+    let structured = document.querySelector<HTMLScriptElement>('script[data-alib-structured-data="content"]');
+    if (!structured) { structured = document.createElement('script'); structured.type = 'application/ld+json'; structured.dataset.alibStructuredData = 'content'; document.head.appendChild(structured); }
+    structured.textContent = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': item.content_type === 'article' ? 'Article' : 'CreativeWork',
+      headline: item.title,
+      description: item.summary || '',
+      url: window.location.origin + location.pathname,
+      datePublished: item.published_at || item.created_at,
+      dateModified: item.updated_at || item.created_at,
+      image: item.cover_image_url || undefined,
+    });
     api.related(item.id).then(setRelated).catch(() => setRelated([]));
     api.reactions(item.id).then(result => setReactionCounts(result.counts)).catch(() => {});
     api.comments(item.id).then(result => setComments(result.results)).catch(() => setComments([]));
@@ -493,7 +570,14 @@ function ContentBody({ body }: { body: string }) {
   const blocks = body.replace(/\r\n/g, '\n').split(/\n\s*\n/).filter(block => block.trim());
   return <div className="content-markdown">{blocks.map((block, index) => {
     const trimmed = block.trim();
+    const lines = trimmed.split('\n');
     const heading = trimmed.match(/^(#{1,3})\s+(.+)$/);
+    if (trimmed.startsWith('```') && trimmed.endsWith('```') && lines.length >= 2) {
+      const code = lines.slice(1, -1).join('\n');
+      const language = lines[0].slice(3).trim();
+      return <pre className="content-code-block" key={index}><code data-language={language || 'text'}>{code}</code></pre>;
+    }
+    if (trimmed === '---' || trimmed === '***') return <hr key={index} />;
     if (heading) {
       const content = renderInlineMarkdown(heading[2]);
       if (heading[1].length === 1) return <h2 key={index}>{content}</h2>;
@@ -501,7 +585,6 @@ function ContentBody({ body }: { body: string }) {
       return <h4 key={index}>{content}</h4>;
     }
     if (trimmed.startsWith('> ')) return <blockquote key={index}>{renderInlineMarkdown(trimmed.slice(2))}</blockquote>;
-    const lines = trimmed.split('\n');
     if (lines.every(line => /^[-*]\s+/.test(line))) return <ul key={index}>{lines.map((line, i) => <li key={i}>{renderInlineMarkdown(line.replace(/^[-*]\s+/, ''))}</li>)}</ul>;
     if (lines.every(line => /^\d+\.\s+/.test(line))) return <ol key={index}>{lines.map((line, i) => <li key={i}>{renderInlineMarkdown(line.replace(/^\d+\.\s+/, ''))}</li>)}</ol>;
     const image = trimmed.match(/^!\[([^\]]*)\]\((https?:\/\/[^)]+)\)$/);
@@ -517,11 +600,46 @@ function CollectionsPage() {
 }
 
 function CollectionDetailPage() {
-  const { slug = '' } = useParams(); const [collection, setCollection] = useState<Collection | null>(null); const [items, setItems] = useState<ContentItem[]>([]); const [loading, setLoading] = useState(true);
-  useEffect(() => { Promise.all([api.collections(), api.content({ page_size: '100' })]).then(([cols, content]) => { const found = cols.results.find(c => c.slug === slug); setCollection(found || null); setItems(found ? content.results.filter(item => item.collection_slugs?.includes(found.slug)) : []); }).catch(() => setCollection(null)).finally(() => setLoading(false)); }, [slug]);
+  const { slug = '' } = useParams();
+  const [collection, setCollection] = useState<Collection | null>(null);
+  const [items, setItems] = useState<ContentItem[]>([]);
+  const [nextUrl, setNextUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true); setError(''); setCollection(null); setItems([]); setNextUrl(null);
+    Promise.all([
+      api.collectionDetail(slug),
+      api.content({ page_size: '24', collection: slug }),
+    ]).then(([found, content]) => {
+      if (cancelled) return;
+      setCollection(found); setItems(content.results); setNextUrl(content.next);
+    }).catch(err => {
+      if (cancelled) return;
+      setCollection(null);
+      setError(err instanceof Error ? err.message : 'This collection could not load.');
+    }).finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [slug]);
+
+  async function loadMore() {
+    if (!nextUrl || loadingMore) return;
+    setLoadingMore(true); setError('');
+    try {
+      const url = new URL(nextUrl, window.location.origin);
+      const page = await api.content(Object.fromEntries(url.searchParams.entries()));
+      setItems(current => [...current, ...page.results]); setNextUrl(page.next);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'More collection items could not load.');
+    } finally { setLoadingMore(false); }
+  }
+
   if (loading) return <div className="page-wrap section-wrap"><LoadingRows /></div>;
-  if (!collection) return <div className="page-wrap section-wrap"><EmptyState title="Collection not found." body="This collection may be private or not published." action={<Link to="/collections" className="button button-outline"><ArrowLeft size={15} /> All collections</Link>} /></div>;
-  return <div className="page-wrap section-wrap page-enter"><Link className="back-link" to="/collections"><ArrowLeft size={15} /> All collections</Link><div className="page-hero page-hero-small"><div className="eyebrow">CURATED COLLECTION <span className="eyebrow-rule" /></div><h1>{collection.title}<span className="title-period">.</span></h1><p>{collection.description}</p></div>{items.length ? <ContentGrid items={items} compact /> : <EmptyState title="This collection is ready to grow." body="Add items to this collection from Creator Studio. Only published public entries are shown here." />}</div>;
+  if (!collection) return <div className="page-wrap section-wrap"><EmptyState title="Collection not found." body={error || "This collection may be private or not published."} action={<Link to="/collections" className="button button-outline"><ArrowLeft size={15} /> All collections</Link>} /></div>;
+  return <div className="page-wrap section-wrap page-enter"><Link className="back-link" to="/collections"><ArrowLeft size={15} /> All collections</Link><div className="page-hero page-hero-small"><div className="eyebrow">CURATED COLLECTION <span className="eyebrow-rule" /></div><h1>{collection.title}<span className="title-period">.</span></h1><p>{collection.description}</p></div>{items.length ? <ContentGrid items={items} compact /> : <EmptyState title="This collection is ready to grow." body="Add items to this collection from Creator Studio. Only published public entries are shown here." />}{error && items.length > 0 && <InlineNotice text={error} />}{nextUrl && items.length > 0 && <div className="discover-load-more"><button className="button button-outline" onClick={() => void loadMore()} disabled={loadingMore}>{loadingMore ? 'Loading more…' : 'Load more collection items'} <ArrowDown size={15} /></button></div>}</div>;
 }
 
 function AboutPage() {
@@ -583,9 +701,9 @@ function AdminPage() {
 }
 
 function AdminLogin({ onLogin, error, setError }: { onLogin: (u: AdminUser) => void; error: string; setError: (s: string) => void }) {
-  const [username, setUsername] = useState(''); const [password, setPassword] = useState(''); const [busy, setBusy] = useState(false);
-  async function submit(e: FormEvent) { e.preventDefault(); setBusy(true); setError(''); try { onLogin(await api.login(username, password)); } catch (e) { setError(e instanceof Error ? e.message : 'Sign-in failed. Check your credentials and try again.'); } finally { setBusy(false); } }
-  return <div className="admin-auth-wrap"><div className="admin-auth-art"><Link to="/" className="brand"><span className="brand-mark">A<span>.</span></span><span className="brand-word">ALIB</span></Link><div><span className="eyebrow">PRIVATE WORKSPACE</span><h1>Make room<br /><em>for the good stuff.</em></h1><p>Your ideas, projects, and digital archive — managed in one place.</p></div><span className="auth-art-stamp">CREATOR STUDIO<br />BUILD / SAVE / PUBLISH</span></div><div className="admin-auth-form"><Link to="/" className="back-link"><ArrowLeft size={15} /> Back to ALIB</Link><div className="admin-auth-form-inner"><span className="section-kicker">WELCOME BACK</span><h2>Sign in to your studio</h2><p>Use the administrator account created with Django.</p>{error && <div className="error-message" role="alert">{error}</div>}<form onSubmit={submit}><label>Username<input value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" required /></label><label>Password<input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" required /></label><button className="button button-primary full-width" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'} <ArrowRight size={16} /></button></form><p className="forgot-password"><Link to="/reset-password">Forgot your password?</Link></p><div className="secure-note"><ShieldCheck size={16} /><p>Protected by the Django server. Reset email delivery requires a configured email provider.</p></div></div><span className="auth-copyright">ALIB · PRIVATE BY DESIGN</span></div></div>;
+  const [username, setUsername] = useState(''); const [password, setPassword] = useState(''); const [challenge, setChallenge] = useState(''); const [authenticatorCode, setAuthenticatorCode] = useState(''); const [busy, setBusy] = useState(false);
+  async function submit(e: FormEvent) { e.preventDefault(); setBusy(true); setError(''); try { if (challenge) { onLogin(await api.verifyTwoFactorLogin(challenge, authenticatorCode)); return; } const result = await api.login(username, password); if (result.requires_two_factor && result.challenge) { setChallenge(result.challenge); setPassword(''); setError(''); } else if (result.user) { onLogin(result.user); } else { throw new Error(result.detail || 'Sign-in could not be completed.'); } } catch (e) { setError(e instanceof Error ? e.message : 'Sign-in failed. Check your credentials and try again.'); } finally { setBusy(false); } }
+  return <div className="admin-auth-wrap"><div className="admin-auth-art"><Link to="/" className="brand"><span className="brand-mark">A<span>.</span></span><span className="brand-word">ALIB</span></Link><div><span className="eyebrow">PRIVATE WORKSPACE</span><h1>Make room<br /><em>for the good stuff.</em></h1><p>Your ideas, projects, and digital archive — managed in one place.</p></div><span className="auth-art-stamp">CREATOR STUDIO<br />BUILD / SAVE / PUBLISH</span></div><div className="admin-auth-form"><Link to="/" className="back-link"><ArrowLeft size={15} /> Back to ALIB</Link><div className="admin-auth-form-inner"><span className="section-kicker">WELCOME BACK</span><h2>Sign in to your studio</h2><p>Use the administrator account created with Django.</p>{error && <div className="error-message" role="alert">{error}</div>}<form onSubmit={submit}>{challenge ? <><p>Enter the six-digit code from your authenticator app. This login challenge expires in five minutes and a code cannot be reused.</p><label>Authenticator code<input inputMode="numeric" pattern="[0-9]{6}" autoComplete="one-time-code" maxLength={6} value={authenticatorCode} onChange={e => setAuthenticatorCode(e.target.value.replace(/\D/g, '').slice(0, 6))} required autoFocus /></label><button className="button button-primary full-width" disabled={busy || authenticatorCode.length !== 6}>{busy ? 'Verifying…' : 'Verify and sign in'} <ArrowRight size={16} /></button><button type="button" className="button button-outline full-width" disabled={busy} onClick={() => { setChallenge(''); setAuthenticatorCode(''); setError(''); }}>Back to password</button></> : <><label>Username<input value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" required /></label><label>Password<input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" required /></label><button className="button button-primary full-width" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'} <ArrowRight size={16} /></button></>}</form>{!challenge && <p className="forgot-password"><Link to="/reset-password">Forgot your password?</Link></p>}<div className="secure-note"><ShieldCheck size={16} /><p>Protected by the Django server. Reset email delivery requires a configured email provider.</p></div></div><span className="auth-copyright">ALIB · PRIVATE BY DESIGN</span></div></div>;
 }
 
 function MediaThumbnail({ asset }: { asset: MediaAsset }) {
@@ -603,7 +721,9 @@ function MediaThumbnail({ asset }: { asset: MediaAsset }) {
 }
 
 function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => void }) {
-  const [tab, setTab] = useState<'overview' | 'content' | 'editor' | 'media' | 'settings' | 'profile' | 'collections' | 'inbox' | 'analytics' | 'moderation' | 'comments' | 'team' | 'audit' | 'newsletter'>('overview'); const [stats, setStats] = useState<AdminStats | null>(null); const [items, setItems] = useState<ContentItem[]>([]); const [categories, setCategories] = useState<Category[]>([]); const [tags, setTags] = useState<Tag[]>([]); const [media, setMedia] = useState<MediaAsset[]>([]); const [mediaAltText, setMediaAltText] = useState<Record<number, string>>({}); const [uploadProgress, setUploadProgress] = useState<number | null>(null); const [busy, setBusy] = useState(false); const [message, setMessage] = useState(''); const [editId, setEditId] = useState<number | undefined>();
+  const [tab, setTab] = useState<'overview' | 'content' | 'editor' | 'media' | 'settings' | 'profile' | 'collections' | 'inbox' | 'analytics' | 'moderation' | 'comments' | 'team' | 'audit' | 'newsletter' | 'security'>('overview');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => safeStorageGet('alib-studio-sidebar-collapsed') === 'true');
+  const [stats, setStats] = useState<AdminStats | null>(null); const [items, setItems] = useState<ContentItem[]>([]); const [categories, setCategories] = useState<Category[]>([]); const [tags, setTags] = useState<Tag[]>([]); const [media, setMedia] = useState<MediaAsset[]>([]); const [mediaAltText, setMediaAltText] = useState<Record<number, string>>({}); const [uploadProgress, setUploadProgress] = useState<number | null>(null); const [busy, setBusy] = useState(false); const [message, setMessage] = useState(''); const [editId, setEditId] = useState<number | undefined>();
   const emptyForm = { title: '', slug: '', summary: '', body: '', content_type: 'article' as ContentType, source_url: '', cover_image_url: '', status: 'draft', visibility: 'public', featured: false, allow_download: false, scheduled_for: '', category_id: '', tag_ids: [] as number[] };
   const [form, setForm] = useState(emptyForm);
   const [hasUnsavedEdits, setHasUnsavedEdits] = useState(false);
@@ -613,15 +733,18 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
   const isAdmin = role === 'administrator';
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
+    try { safeStorageSet('alib-studio-sidebar-collapsed', sidebarCollapsed ? 'true' : 'false'); } catch { /* The layout still works when storage is unavailable. */ }
+  }, [sidebarCollapsed]);
+  useEffect(() => {
     try {
-      const saved = localStorage.getItem('alib-editor-draft');
+      const saved = safeStorageGet('alib-editor-draft');
       const parsed = saved ? JSON.parse(saved) : null;
       if (parsed?.form && !editId) {
         setForm({ ...emptyForm, ...parsed.form });
         setMessage('Recovered an unsaved local draft. Save it to keep it in the database.');
         setTab('editor');
       }
-    } catch { localStorage.removeItem('alib-editor-draft'); }
+    } catch { safeStorageRemove('alib-editor-draft'); }
   }, []);
   useEffect(() => {
     if (tab === 'editor' && hasUnsavedEdits) {
@@ -631,16 +754,29 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
     }
   }, [tab, hasUnsavedEdits]);
   useEffect(() => {
-    if (tab === 'editor' && !editId) {
-      try { localStorage.setItem('alib-editor-draft', JSON.stringify({ form })); } catch { /* Autosave is a convenience, not a requirement for editing. */ }
+    if (tab === 'editor' && hasUnsavedEdits) {
+      const draftKey = editId ? `alib-editor-draft-${editId}` : 'alib-editor-draft';
+      try { safeStorageSet(draftKey, JSON.stringify({ editId: editId ?? null, form, savedAt: new Date().toISOString() })); } catch { /* Autosave is a convenience, not a requirement for editing. */ }
     }
-  }, [form, tab, editId]);
+  }, [form, tab, editId, hasUnsavedEdits]);
   async function reload() { setBusy(true); try { const [s, c] = await Promise.all([api.adminStats(), api.adminContent({ page_size: '100' })]); setStats(s); setItems(c.results); } catch (e) { setMessage(e instanceof Error ? e.message : 'Unable to load dashboard data.'); } finally { setBusy(false); } }
   useEffect(() => { void reload(); api.categories().then(r => setCategories(r.results)).catch(() => setCategories([])); api.tags().then(r => setTags(r.results)).catch(() => setTags([])); }, []);
   async function loadMedia() { try { const result = await api.media(); setMedia(result.results); } catch (e) { setMessage(e instanceof Error ? e.message : 'Unable to load the media library.'); } }
-  function newItem() { setEditId(undefined); setForm(emptyForm); setHasUnsavedEdits(false); setMessage(''); setTab('editor'); }
-  function editItem(item: ContentItem) { setEditId(item.id); setHasUnsavedEdits(false); setForm({ title: item.title, slug: item.slug, summary: item.summary || '', body: item.body || '', content_type: item.content_type, source_url: item.source_url || '', cover_image_url: item.cover_image_url || '', status: item.status, visibility: item.visibility, featured: item.featured, allow_download: item.allow_download, scheduled_for: item.scheduled_for ? item.scheduled_for.slice(0, 16) : '', category_id: item.category?.id ? String(item.category.id) : '', tag_ids: item.tags.map(tag => tag.id) }); setMessage(''); setTab('editor'); }
-  async function saveItem(e: FormEvent) { e.preventDefault(); setBusy(true); setMessage(''); try { const payload = { ...form, scheduled_for: form.scheduled_for ? new Date(form.scheduled_for).toISOString() : null, category_id: form.category_id ? Number(form.category_id) : null, tag_ids: form.tag_ids }; await api.saveContent(payload as Partial<ContentItem>, editId); localStorage.removeItem('alib-editor-draft'); setHasUnsavedEdits(false); setMessage(form.status === 'published' ? 'Content published. Public pages will now show it.' : form.status === 'scheduled' ? 'Scheduled content saved. Ensure the publish_scheduled command is run by a scheduler.' : 'Draft saved successfully.'); await reload(); setTab('content'); } catch (e) { setMessage(e instanceof Error ? e.message : 'Could not save content.'); } finally { setBusy(false); } }
+  function newItem() {
+    setEditId(undefined);
+    let nextForm = emptyForm;
+    try {
+      const saved = safeStorageGet('alib-editor-draft');
+      const parsed = saved ? JSON.parse(saved) : null;
+      if (parsed?.form) nextForm = { ...emptyForm, ...parsed.form };
+    } catch { safeStorageRemove('alib-editor-draft'); }
+    setForm(nextForm);
+    setHasUnsavedEdits(false);
+    setMessage('');
+    setTab('editor');
+  }
+  function editItem(item: ContentItem) { let nextForm = { title: item.title, slug: item.slug, summary: item.summary || '', body: item.body || '', content_type: item.content_type, source_url: item.source_url || '', cover_image_url: item.cover_image_url || '', status: item.status, visibility: item.visibility, featured: item.featured, allow_download: item.allow_download, scheduled_for: item.scheduled_for ? item.scheduled_for.slice(0, 16) : '', category_id: item.category?.id ? String(item.category.id) : '', tag_ids: item.tags.map(tag => tag.id) }; let hasDraft = false; try { const saved = safeStorageGet(`alib-editor-draft-${item.id}`); const parsed = saved ? JSON.parse(saved) : null; if (parsed?.form && parsed.editId === item.id) { nextForm = { ...nextForm, ...parsed.form }; hasDraft = true; } } catch { safeStorageRemove(`alib-editor-draft-${item.id}`); } setEditId(item.id); setHasUnsavedEdits(hasDraft); setForm(nextForm); setMessage(hasDraft ? 'Recovered this item’s unsaved browser draft.' : ''); setTab('editor'); }
+  async function saveItem(e: FormEvent) { e.preventDefault(); setBusy(true); setMessage(''); try { const payload = { ...form, scheduled_for: form.scheduled_for ? new Date(form.scheduled_for).toISOString() : null, category_id: form.category_id ? Number(form.category_id) : null, tag_ids: form.tag_ids }; await api.saveContent(payload as Partial<ContentItem>, editId); safeStorageRemove('alib-editor-draft'); if (editId) safeStorageRemove(`alib-editor-draft-${editId}`); setHasUnsavedEdits(false); setMessage(form.status === 'published' ? 'Content published. Public pages will now show it.' : form.status === 'scheduled' ? 'Scheduled content saved. Ensure the publish_scheduled command is run by a scheduler.' : 'Draft saved successfully.'); await reload(); setTab('content'); } catch (e) { setMessage(e instanceof Error ? e.message : 'Could not save content.'); } finally { setBusy(false); } }
   function insertMarkup(before: string, after = '') {
     const element = bodyRef.current;
     if (!element) return;
@@ -652,24 +788,25 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
   }
   async function removeItem(item: ContentItem) { if (!window.confirm(`Delete “${item.title}”? This cannot be undone.`)) return; try { await api.deleteContent(item.id); setMessage('Content deleted.'); await reload(); } catch (e) { setMessage(e instanceof Error ? e.message : 'Could not delete content.'); } }
   function setField<K extends keyof typeof emptyForm>(key: K, value: (typeof emptyForm)[K]) { setHasUnsavedEdits(true); setForm(prev => ({ ...prev, [key]: value })); }
-  return <div className="admin-page"><aside className="admin-sidebar"><Link to="/" className="brand"><span className="brand-mark">A<span>.</span></span><span className="brand-word">ALIB</span></Link><div className="studio-caption"><span className="status-dot" /> CREATOR STUDIO</div><div className="admin-workspace-label">WORKSPACE</div><nav className="admin-menu" aria-label="Creator Studio navigation">
-      <button className={tab === 'overview' ? 'selected' : ''} onClick={() => setTab('overview')}><Compass size={17} /> Overview</button>
-      {canManage && <button className={tab === 'content' ? 'selected' : ''} onClick={() => setTab('content')}><FileText size={17} /> All content <span className="nav-count">{items.length}</span></button>}
-      {canManage && <button className={tab === 'editor' ? 'selected' : ''} onClick={newItem}><Plus size={17} /> New content</button>}
-      {canManage && <button className={tab === 'media' ? 'selected' : ''} onClick={() => { setTab('media'); void loadMedia(); }}><FolderOpen size={17} /> Media library</button>}
-      {canManage && <button className={tab === 'collections' ? 'selected' : ''} onClick={() => setTab('collections')}><Layers3 size={17} /> Collections</button>}
-      {canManage && <button className={tab === 'profile' ? 'selected' : ''} onClick={() => setTab('profile')}><UserRound size={17} /> Creator profile</button>}
-      {isAdmin && <button className={tab === 'settings' ? 'selected' : ''} onClick={() => setTab('settings')}><Settings2 size={17} /> Site settings</button>}
-      {canModerate && <button className={tab === 'inbox' ? 'selected' : ''} onClick={() => setTab('inbox')}><Inbox size={17} /> Contact inbox</button>}
-      <button className={tab === 'analytics' ? 'selected' : ''} onClick={() => setTab('analytics')}><BarChart3 size={17} /> Analytics</button>
-      {canModerate && <button className={tab === 'moderation' ? 'selected' : ''} onClick={() => setTab('moderation')}><ShieldCheck size={17} /> Suggestions</button>}
-      {canModerate && <button className={tab === 'comments' ? 'selected' : ''} onClick={() => setTab('comments')}><MessageCircle size={17} /> Comments</button>}
-      {isAdmin && <button className={tab === 'team' ? 'selected' : ''} onClick={() => setTab('team')}><Users size={17} /> Team access</button>}
-      {isAdmin && <button className={tab === 'audit' ? 'selected' : ''} onClick={() => setTab('audit')}><ClipboardList size={17} /> Audit history</button>}
-      {isAdmin && <button className={tab === 'newsletter' ? 'selected' : ''} onClick={() => setTab('newsletter')}><AtSign size={17} /> Newsletter</button>}
-      <Link to="/" className="admin-menu-link"><Globe2 size={17} /> View public site <ArrowUpRight size={14} /></Link>
-    </nav><div className="admin-sidebar-bottom"><div className="admin-avatar">{user.username.slice(0, 1).toUpperCase()}</div><div className="admin-user-meta"><strong>{user.username}</strong><span>Administrator</span></div><button className="icon-button" onClick={onSignOut} aria-label="Sign out"><LogOut size={17} /></button></div></aside>
-    <div className="admin-main"><header className="admin-topbar"><div><span className="section-kicker">ALIB / WORKSPACE</span><span className="admin-breadcrumb">{({ overview: 'Overview', content: 'All content', editor: editId ? 'Edit content' : 'New content', media: 'Media library', settings: 'Site settings', profile: 'Creator profile', collections: 'Collections', inbox: 'Contact inbox', analytics: 'Analytics', moderation: 'Suggestions', comments: 'Comments', team: 'Team access', audit: 'Audit history', newsletter: 'Newsletter' } as Record<string, string>)[tab]}</span></div><div className="admin-topbar-actions"><span className="admin-live-status"><span className="status-dot" /> Connected as {user.username}</span>{canManage && <button className="button button-primary button-small" onClick={newItem}><Plus size={15} /> Create content</button>}</div></header>
+  return <div className={`admin-page admin-layout ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}><aside className={`admin-sidebar ${sidebarCollapsed ? 'is-collapsed' : ''}`}><div className="admin-sidebar-header"><Link to="/" className="brand" title="ALIB home"><span className="brand-mark">A<span>.</span></span><span className="brand-word">ALIB</span></Link><button type="button" className="icon-button sidebar-toggle" onClick={() => setSidebarCollapsed(value => !value)} aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}>{sidebarCollapsed ? <ChevronRight size={17} /> : <ChevronLeft size={17} />}</button></div><div className="studio-caption"><span className="status-dot" /> CREATOR STUDIO</div><div className="admin-workspace-label">WORKSPACE</div><nav className="admin-menu" aria-label="Creator Studio navigation">
+      <button title="Overview" className={tab === 'overview' ? 'selected' : ''} onClick={() => setTab('overview')}><Compass size={17} /> Overview</button>
+      <button title="Account security" className={tab === 'security' ? 'selected' : ''} onClick={() => setTab('security')}><ShieldCheck size={17} /> Account security</button>
+      {canManage && <button title="All content" className={tab === 'content' ? 'selected' : ''} onClick={() => setTab('content')}><FileText size={17} /> All content <span className="nav-count">{items.length}</span></button>}
+      {canManage && <button title="New content" className={tab === 'editor' ? 'selected' : ''} onClick={newItem}><Plus size={17} /> New content</button>}
+      {canManage && <button title="Media library" className={tab === 'media' ? 'selected' : ''} onClick={() => { setTab('media'); void loadMedia(); }}><FolderOpen size={17} /> Media library</button>}
+      {canManage && <button title="Collections" className={tab === 'collections' ? 'selected' : ''} onClick={() => setTab('collections')}><Layers3 size={17} /> Collections</button>}
+      {canManage && <button title="Creator profile" className={tab === 'profile' ? 'selected' : ''} onClick={() => setTab('profile')}><UserRound size={17} /> Creator profile</button>}
+      {isAdmin && <button title="Site settings" className={tab === 'settings' ? 'selected' : ''} onClick={() => setTab('settings')}><Settings2 size={17} /> Site settings</button>}
+      {canModerate && <button title="Contact inbox" className={tab === 'inbox' ? 'selected' : ''} onClick={() => setTab('inbox')}><Inbox size={17} /> Contact inbox</button>}
+      <button title="Analytics" className={tab === 'analytics' ? 'selected' : ''} onClick={() => setTab('analytics')}><BarChart3 size={17} /> Analytics</button>
+      {canModerate && <button title="Suggestions" className={tab === 'moderation' ? 'selected' : ''} onClick={() => setTab('moderation')}><ShieldCheck size={17} /> Suggestions</button>}
+      {canModerate && <button title="Comments" className={tab === 'comments' ? 'selected' : ''} onClick={() => setTab('comments')}><MessageCircle size={17} /> Comments</button>}
+      {isAdmin && <button title="Team access" className={tab === 'team' ? 'selected' : ''} onClick={() => setTab('team')}><Users size={17} /> Team access</button>}
+      {isAdmin && <button title="Audit history" className={tab === 'audit' ? 'selected' : ''} onClick={() => setTab('audit')}><ClipboardList size={17} /> Audit history</button>}
+      {isAdmin && <button title="Newsletter" className={tab === 'newsletter' ? 'selected' : ''} onClick={() => setTab('newsletter')}><AtSign size={17} /> Newsletter</button>}
+      <Link to="/" title="View public site" className="admin-menu-link"><Globe2 size={17} /> View public site <ArrowUpRight size={14} /></Link>
+    </nav><div className="admin-sidebar-bottom"><div className="admin-avatar">{user.username.slice(0, 1).toUpperCase()}</div><div className="admin-user-meta"><strong>{user.username}</strong><span>{({ administrator: 'Administrator', editor: 'Editor', moderator: 'Moderator', support: 'Support' } as Record<TeamRole, string>)[role]}</span></div><button className="icon-button" onClick={onSignOut} aria-label="Sign out"><LogOut size={17} /></button></div></aside>
+    <div className="admin-main"><header className="admin-topbar"><div><span className="section-kicker">ALIB / WORKSPACE</span><span className="admin-breadcrumb">{({ overview: 'Overview', security: 'Account security', content: 'All content', editor: editId ? 'Edit content' : 'New content', media: 'Media library', settings: 'Site settings', profile: 'Creator profile', collections: 'Collections', inbox: 'Contact inbox', analytics: 'Analytics', moderation: 'Suggestions', comments: 'Comments', team: 'Team access', audit: 'Audit history', newsletter: 'Newsletter' } as Record<string, string>)[tab]}</span></div><div className="admin-topbar-actions"><span className="admin-live-status"><span className="status-dot" /> Connected as {user.username}</span>{canManage && <button className="button button-primary button-small" onClick={newItem}><Plus size={15} /> Create content</button>}</div></header>
       <div className="admin-content-area">{message && <div className={message.toLowerCase().includes('could not') || message.toLowerCase().includes('unable') ? 'error-message' : 'success-message'} role="status">{message}<button onClick={() => setMessage('')} aria-label="Dismiss message"><X size={15} /></button></div>}
       {tab === 'overview' && <><div className="admin-welcome"><div><span className="section-kicker">YOUR DIGITAL HOME</span><h1>Good to see you, {user.username}.</h1><p>Here’s what’s happening in your archive.</p></div><button className="button button-outline" onClick={() => void reload()} disabled={busy}>{busy ? 'Refreshing…' : 'Refresh data'} <Clock3 size={15} /></button></div><div className="admin-stat-grid"><AdminStat icon={<FileText size={18} />} label="Published" value={stats?.published ?? '—'} hint="Visible to visitors" /><AdminStat icon={<PenLine size={18} />} label="Drafts" value={stats?.drafts ?? '—'} hint="Still in the studio" /><AdminStat icon={<Clock3 size={18} />} label="Scheduled" value={stats?.scheduled ?? '—'} hint="Waiting to publish" /><AdminStat icon={<FolderOpen size={18} />} label="Media assets" value={stats?.assets ?? '—'} hint="Stored asset records" /></div><div className="admin-overview-grid"><section className="admin-panel recent-content-panel"><div className="admin-panel-heading"><div><span className="section-kicker">THE ARCHIVE</span><h2>Recent content</h2></div><button className="text-link" onClick={() => setTab('content')}>View all <ArrowRight size={15} /></button></div>{items.slice(0, 5).length ? <div className="admin-recent-list">{items.slice(0, 5).map(item => <div key={item.id} className="admin-recent-row"><div className="admin-recent-icon"><FileText size={17} /></div><div className="admin-recent-meta"><strong>{item.title}</strong><span>{labelType(item.content_type)} · updated {formatDate(item.updated_at)}</span></div><StatusPill status={item.status} /><button className="icon-button" aria-label={`Edit ${item.title}`} onClick={() => editItem(item)}><ArrowUpRight size={16} /></button></div>)}</div> : <div className="admin-empty"><PenLine size={22} /><h3>Your content starts here.</h3><p>Create a draft or publish a first item. Publicly published items become discoverable automatically.</p><button className="button button-primary" onClick={newItem}><Plus size={15} /> Create first item</button></div>}</section><section className="admin-panel quick-actions-panel"><div className="admin-panel-heading"><div><span className="section-kicker">QUICK ACTIONS</span><h2>Keep things moving</h2></div><Command size={19} /></div><button className="quick-action" onClick={newItem}><span className="quick-action-icon"><Plus size={17} /></span><span><strong>Write something new</strong><small>Create an article, link, project, or resource.</small></span><ArrowRight size={16} /></button><button className="quick-action" onClick={() => { setTab('media'); void loadMedia(); }}><span className="quick-action-icon"><Upload size={17} /></span><span><strong>Add a media asset</strong><small>Manage covers and permitted downloads.</small></span><ArrowRight size={16} /></button><Link className="quick-action" to="/" target="_blank"><span className="quick-action-icon"><Globe2 size={17} /></span><span><strong>Preview the public site</strong><small>See the visitor experience.</small></span><ArrowUpRight size={16} /></Link><div className="security-note"><ShieldCheck size={16} /><span>Publishing is controlled by your account permissions. Drafts are not shown to anonymous visitors.</span></div></section></div></>}
       {tab === 'content' && <section className="admin-panel content-management-panel"><div className="admin-panel-heading"><div><span className="section-kicker">CONTENT MANAGER</span><h2>Everything in the archive</h2><p>{items.length} items returned by the API</p></div><button className="button button-primary" onClick={newItem}><Plus size={15} /> New item</button></div><div className="content-table-wrap"><table className="content-table"><thead><tr><th>Title</th><th>Type</th><th>Status</th><th>Visibility</th><th>Updated</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>{items.map(item => <tr key={item.id}><td><div className="table-title"><span className="table-thumb"><FileText size={16} /></span><span><strong>{item.title}</strong><small>/{item.slug}</small></span></div></td><td>{labelType(item.content_type)}</td><td><StatusPill status={item.status} /></td><td><span className="visibility-label">{item.visibility}</span></td><td>{formatDate(item.updated_at)}</td><td><div className="table-actions"><button className="icon-button" onClick={() => editItem(item)} aria-label={`Edit ${item.title}`}><PenLine size={15} /></button><button className="icon-button danger-icon" onClick={() => void removeItem(item)} aria-label={`Delete ${item.title}`}><Trash2 size={15} /></button></div></td></tr>)}</tbody></table>{!items.length && <div className="table-empty"><FolderOpen size={22} /><p>No items have been added yet.</p><button className="button button-outline" onClick={newItem}><Plus size={15} /> Create your first item</button></div>}</div></section>}
@@ -680,7 +817,7 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
       <button type="button" onClick={() => insertMarkup('*', '*')} aria-label="Italic selected text"><em>I</em></button>
       <button type="button" onClick={() => insertMarkup('- ')} aria-label="Bullet list">• List</button>
       <button type="button" onClick={() => insertMarkup('> ')} aria-label="Quote">Quote</button>
-      <button type="button" onClick={() => insertMarkup('[', '](https://example.com)')} aria-label="Link">Link</button>
+      <button type="button" onClick={() => insertMarkup('[', '](https://example.com)')} aria-label="Link">Link</button><button type="button" onClick={() => insertMarkup('```text\n', '\n```')} aria-label="Code block">Code</button><button type="button" onClick={() => insertMarkup('![Alt text](', ')')} aria-label="Image with alt text">Image</button><button type="button" onClick={() => insertMarkup('\n---\n')} aria-label="Horizontal divider">Divider</button>
     </div>
     <textarea ref={bodyRef} rows={9} value={form.body} onChange={e => setField('body', e.target.value)} placeholder="Write content in Markdown: ## headings, **bold**, bullet lists, > quotes, and [links](https://…). Blank lines start new paragraphs." />
   </label>
@@ -691,7 +828,8 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
 
       {tab === 'settings' && <SiteSettingsPanel onMessage={setMessage} />}
       {tab === 'profile' && canManage && <CreatorProfilePanel onMessage={setMessage} />}
-      {tab === 'team' && isAdmin && <TeamManagementPanel isOwner={Boolean(user.is_superuser)} onMessage={setMessage} />}
+      {tab === 'team' && isAdmin && <TeamManagementPanel isOwner={Boolean(user.is_superuser)} currentUserId={user.id} onMessage={setMessage} />}
+      {tab === 'security' && <TwoFactorSecurityPanel onMessage={setMessage} />}
       {tab === 'audit' && isAdmin && <AuditHistoryPanel onMessage={setMessage} />}
       {tab === 'newsletter' && isAdmin && <NewsletterSubscribersPanel onMessage={setMessage} />}
       {tab === 'collections' && <CollectionsManagerPanel items={items} onMessage={setMessage} />}
@@ -726,7 +864,21 @@ function NewsletterSubscribersPanel({ onMessage }: { onMessage: (message: string
     <div className="admin-stat-grid"><AdminStat icon={<AtSign size={18} />} label="Loaded subscribers" value={subscribers.length} hint="Filtered list, up to 500" /><AdminStat icon={<Check size={18} />} label="Confirmed in view" value={confirmed} hint="Active opt-ins only" /></div>
     {loading ? <div className="admin-empty">Loading subscribers…</div> : subscribers.length ? <div className="admin-inbox-list">{subscribers.map(row => <article className="subscriber-row" key={row.id}><div><strong>{row.email}</strong><span>{row.is_active ? 'Confirmed subscription' : 'Pending / inactive'}</span><time>Added {formatDate(row.created_at)}{row.confirmed_at ? ` · Confirmed ${formatDate(row.confirmed_at)}` : ''}</time></div><span className={`status-pill ${row.is_active ? 'status-published' : 'status-draft'}`}>{row.is_active ? 'Active' : 'Inactive'}</span></article>)}</div> : <div className="admin-empty"><AtSign size={22} /><h3>No subscribers found.</h3><p>Newsletter confirmation emails require SMTP to be configured on the server.</p></div>}</section>;
 }
-function TeamManagementPanel({ isOwner, onMessage }: { isOwner: boolean; onMessage: (message: string) => void }) {
+function TwoFactorSecurityPanel({ onMessage }: { onMessage: (message: string) => void }) {
+  const [state, setState] = useState<TwoFactorStatus | null>(null);
+  const [code, setCode] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  async function reload() { setLoading(true); try { setState(await api.twoFactorStatus()); } catch (e) { onMessage(e instanceof Error ? e.message : 'Two-factor status could not load.'); } finally { setLoading(false); } }
+  useEffect(() => { void reload(); }, []);
+  async function enable(e: FormEvent) { e.preventDefault(); setBusy(true); try { const result = await api.enableTwoFactor(code); onMessage(result.detail); setCode(''); await reload(); } catch (e) { onMessage(e instanceof Error ? e.message : 'Two-factor setup failed.'); } finally { setBusy(false); } }
+  async function disable(e: FormEvent) { e.preventDefault(); setBusy(true); try { const result = await api.disableTwoFactor(code, password); onMessage(result.detail); setCode(''); setPassword(''); await reload(); } catch (e) { onMessage(e instanceof Error ? e.message : 'Two-factor could not be disabled.'); } finally { setBusy(false); } }
+  if (loading) return <div className="admin-panel admin-empty">Loading account security…</div>;
+  return <section className="admin-panel security-panel"><div className="admin-panel-heading"><div><span className="section-kicker">OWNER AND STAFF SIGN-IN</span><h2>Authenticator-app verification</h2><p>Use a TOTP-compatible authenticator app. Codes are time-based, expire quickly, and are only accepted once per step.</p></div><ShieldCheck size={20} /></div>
+    {state?.enabled ? <form className="settings-form" onSubmit={disable}><div className="security-enabled-state"><Check size={19} /><div><strong>Two-factor authentication is enabled</strong><p>Your next sign-in requires your password and a fresh authenticator code.</p></div></div><label>Current password<input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required /></label><label>Authenticator code<input inputMode="numeric" pattern="[0-9]{6}" autoComplete="one-time-code" maxLength={6} value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} required /></label><button className="button button-outline" disabled={busy || code.length !== 6}>{busy ? 'Verifying…' : 'Disable two-factor'}</button></form> : <form className="settings-form" onSubmit={enable}><div className="security-setup-step"><span>01</span><div><strong>Add ALIB to your authenticator app</strong><p>In your authenticator, add an account using the manual key below or the provisioning URI. The URI can include the secret; do not share it or paste it into public sites.</p></div></div><label>Manual setup key<input readOnly value={state?.secret || ''} onFocus={e => e.currentTarget.select()} /></label><label>Provisioning URI<input readOnly value={state?.otpauth_uri || ''} onFocus={e => e.currentTarget.select()} /></label><div className="security-setup-step"><span>02</span><div><strong>Verify before enabling</strong><p>Enter the six-digit code shown in the app. ALIB will enforce the code at each subsequent sign-in.</p></div></div><label>Authenticator code<input inputMode="numeric" pattern="[0-9]{6}" autoComplete="one-time-code" maxLength={6} value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} required /></label><button className="button button-primary" disabled={busy || code.length !== 6}>{busy ? 'Verifying…' : 'Enable two-factor authentication'} <ShieldCheck size={15} /></button></form>}</section>;
+}
+function TeamManagementPanel({ isOwner, currentUserId, onMessage }: { isOwner: boolean; currentUserId: number; onMessage: (message: string) => void }) {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -741,7 +893,7 @@ function TeamManagementPanel({ isOwner, onMessage }: { isOwner: boolean; onMessa
     catch (e) { onMessage(e instanceof Error ? e.message : 'Invitation could not be sent. Check the email provider settings.'); }
     finally { setInviting(false); }
   }
-  async function update(member: TeamMember, payload: { role?: TeamRole; is_active?: boolean }) {
+  async function update(member: TeamMember, payload: { role?: TeamRole; is_active?: boolean; reset_two_factor?: boolean }) {
     try { const saved = await api.updateTeamMember(member.id, payload); setMembers(current => current.map(row => row.id === saved.id ? saved : row)); onMessage(`Updated access for ${member.username}.`); }
     catch (e) { onMessage(e instanceof Error ? e.message : 'Team access could not be updated.'); await reload(); }
   }
@@ -758,7 +910,7 @@ function TeamManagementPanel({ isOwner, onMessage }: { isOwner: boolean; onMessa
       {loading ? <div className="admin-empty">Loading team…</div> : members.map(member => <article className="team-member-row" key={member.id}>
         <div className="team-member-identity"><span className="admin-avatar">{member.username.slice(0,1).toUpperCase()}</span><div><strong>{member.username}</strong><a href={`mailto:${member.email}`}>{member.email || 'No email address'}</a><small>{member.is_superuser ? 'Owner superuser' : member.is_active ? 'Active staff account' : 'Deactivated account'}</small></div></div>
         <div className="team-member-controls"><label className="sr-only" htmlFor={`team-role-${member.id}`}>Role for {member.username}</label><select id={`team-role-${member.id}`} value={member.role === 'none' ? 'editor' : member.role} disabled={member.is_superuser || (!isOwner && member.role === 'administrator')} onChange={e => void update(member, { role: e.target.value as TeamRole })}><option value="editor">Editor</option><option value="moderator">Moderator</option><option value="support">Support</option>{isOwner && <option value="administrator">Administrator</option>}</select>
-          {!member.is_superuser && <button className="button button-outline button-small" onClick={() => void update(member, { is_active: !member.is_active })}>{member.is_active ? 'Deactivate' : 'Reactivate'}</button>}
+          {!member.is_superuser && <button className="button button-outline button-small" onClick={() => void update(member, { is_active: !member.is_active })}>{member.is_active ? 'Deactivate' : 'Reactivate'}</button>}{isOwner && !member.is_superuser && member.id !== currentUserId && <button className="button button-outline button-small" onClick={() => { if (window.confirm(`Reset two-factor setup for ${member.username}? They will need to enrol a new authenticator at their next sign-in.`)) void update(member, { reset_two_factor: true }); }}>Reset 2FA</button>}
         </div>
       </article>)}
     </section>
@@ -823,19 +975,50 @@ function SiteSettingsPanel({ onMessage }: { onMessage: (message: string) => void
   const [settings, setSettings] = useState<SiteSettings>({ site_title: 'ALIB — Digital Home', logo_url: '', favicon_url: '', seo_description: '', homepage_sections: ['featured', 'latest', 'categories', 'collections'], theme_preferences: { primary: '#2563eb', secondary: '#facc15' } });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const sectionOptions = [
+    { key: 'featured', label: 'Featured content', help: 'Curated highlights near the top of the homepage.' },
+    { key: 'latest', label: 'Latest content', help: 'Recently published articles and resources.' },
+    { key: 'categories', label: 'Categories', help: 'Browse the archive by topic.' },
+    { key: 'collections', label: 'Collections', help: 'Hand-curated groups of content.' },
+  ] as const;
   useEffect(() => { api.settings().then(setSettings).catch(e => onMessage(e instanceof Error ? e.message : 'Could not load site settings.')).finally(() => setLoading(false)); }, []);
   function set<K extends keyof SiteSettings>(key: K, value: SiteSettings[K]) { setSettings(prev => ({ ...prev, [key]: value })); }
+  const visibleSections = settings.homepage_sections.filter((key, index, all) => sectionOptions.some(option => option.key === key) && all.indexOf(key) === index);
+  const hiddenSections = sectionOptions.filter(option => !visibleSections.includes(option.key));
+  function moveSection(key: string, delta: number) {
+    setSettings(previous => {
+      const sections = previous.homepage_sections.filter((item, index, all) => sectionOptions.some(option => option.key === item) && all.indexOf(item) === index);
+      const index = sections.indexOf(key);
+      const nextIndex = index + delta;
+      if (index < 0 || nextIndex < 0 || nextIndex >= sections.length) return previous;
+      [sections[index], sections[nextIndex]] = [sections[nextIndex], sections[index]];
+      return { ...previous, homepage_sections: sections };
+    });
+  }
+  function toggleSection(key: string, enabled: boolean) {
+    setSettings(previous => {
+      const sections = previous.homepage_sections.filter((item, index, all) => sectionOptions.some(option => option.key === item) && all.indexOf(item) === index);
+      return { ...previous, homepage_sections: enabled ? [...sections, key] : sections.filter(item => item !== key) };
+    });
+  }
   async function save(e: FormEvent) { e.preventDefault(); setSaving(true); try { const saved = await api.saveSettings(settings); setSettings(saved); onMessage('Site settings saved.'); document.title = saved.site_title; } catch (e) { onMessage(e instanceof Error ? e.message : 'Settings could not be saved.'); } finally { setSaving(false); } }
-  return <section className="admin-panel settings-panel"><div className="admin-panel-heading"><div><span className="section-kicker">SITE CONFIGURATION</span><h2>Brand, profile and homepage</h2><p>{loading ? 'Loading settings…' : 'These values are saved in the database.'}</p></div><Settings2 size={19} /></div><form className="settings-form" onSubmit={save}><label>Site title<input required maxLength={140} value={settings.site_title} onChange={e => set('site_title', e.target.value)} /></label><label>SEO description<textarea rows={3} maxLength={300} value={settings.seo_description} onChange={e => set('seo_description', e.target.value)} /></label><div className="form-two-col"><label>Logo URL<input type="url" value={settings.logo_url} onChange={e => set('logo_url', e.target.value)} placeholder="https://… (optional)" /></label><label>Favicon URL<input type="url" value={settings.favicon_url} onChange={e => set('favicon_url', e.target.value)} placeholder="https://… (optional)" /></label></div><label>Homepage sections (comma-separated)<input value={settings.homepage_sections.join(', ')} onChange={e => set('homepage_sections', e.target.value.split(',').map(x => x.trim()).filter(Boolean))} /></label><div className="settings-theme"><div><strong>Primary blue</strong><span>#2563EB</span></div><div><strong>Accent yellow</strong><span>#FACC15</span></div><p>ALIB uses the established blue-and-yellow palette. A future appearance editor can add more tokens without introducing arbitrary colors.</p></div><button className="button button-primary" disabled={saving || loading}>{saving ? 'Saving…' : 'Save site settings'} <Check size={15} /></button></form></section>;
+  return <section className="admin-panel settings-panel"><div className="admin-panel-heading"><div><span className="section-kicker">SITE CONFIGURATION</span><h2>Brand, profile and homepage</h2><p>{loading ? 'Loading settings…' : 'These values are saved in the database.'}</p></div><Settings2 size={19} /></div><form className="settings-form" onSubmit={save}><label>Site title<input required maxLength={140} value={settings.site_title} onChange={e => set('site_title', e.target.value)} /></label><label>SEO description<textarea rows={3} maxLength={300} value={settings.seo_description} onChange={e => set('seo_description', e.target.value)} /></label><div className="form-two-col"><label>Logo URL<input type="url" value={settings.logo_url} onChange={e => set('logo_url', e.target.value)} placeholder="https://… (optional)" /></label><label>Favicon URL<input type="url" value={settings.favicon_url} onChange={e => set('favicon_url', e.target.value)} placeholder="https://… (optional)" /></label></div>
+    <div className="homepage-section-controls"><div><span className="section-kicker">HOMEPAGE SECTIONS</span><p>Choose what appears on the public homepage. Move visible sections up or down to change their order.</p></div>
+      {visibleSections.length ? visibleSections.map((key, index) => { const option = sectionOptions.find(section => section.key === key)!; return <div className="homepage-section-row" key={key}><div><strong>{index + 1}. {option.label}</strong><small>{option.help}</small></div><div className="homepage-section-actions"><button type="button" className="button button-outline button-small" disabled={index === 0} aria-label={`Move ${option.label} up`} onClick={() => moveSection(key, -1)}>Up</button><button type="button" className="button button-outline button-small" disabled={index === visibleSections.length - 1} aria-label={`Move ${option.label} down`} onClick={() => moveSection(key, 1)}>Down</button><button type="button" className="button button-outline button-small homepage-hide-button" onClick={() => toggleSection(key, false)}>Hide</button></div></div>; }) : <p className="homepage-sections-empty">All homepage sections are hidden. Add one below to show content to visitors.</p>}
+      {hiddenSections.length > 0 && <div className="homepage-section-additions"><span className="section-kicker">HIDDEN SECTIONS</span>{hiddenSections.map(option => <button type="button" key={option.key} className="button button-outline button-small" onClick={() => toggleSection(option.key, true)}>Show {option.label}</button>)}</div>}
+    </div><div className="settings-theme"><div><strong>Primary blue</strong><span>#2563EB</span></div><div><strong>Accent yellow</strong><span>#FACC15</span></div><p>ALIB uses the established blue-and-yellow palette.</p></div><button className="button button-primary" disabled={saving || loading}>{saving ? 'Saving…' : 'Save site settings'} <Check size={15} /></button></form></section>;
 }
 
 function ContactInboxPanel({ onMessage }: { onMessage: (message: string) => void }) {
   const [rows, setRows] = useState<ContactInboxItem[]>([]);
   const [loading, setLoading] = useState(true);
-  async function reload() { setLoading(true); try { setRows(await api.contactInbox()); } catch (e) { onMessage(e instanceof Error ? e.message : 'Inbox could not load.'); } finally { setLoading(false); } }
-  useEffect(() => { void reload(); }, []);
+  const [showArchived, setShowArchived] = useState(false);
+  async function reload(archived = showArchived) { setLoading(true); try { setRows(await api.contactInbox(archived)); } catch (e) { onMessage(e instanceof Error ? e.message : 'Inbox could not load.'); } finally { setLoading(false); } }
+  useEffect(() => { void reload(showArchived); }, [showArchived]);
   async function mark(row: ContactInboxItem) { try { await api.reviewContact(row.id, !row.reviewed); await reload(); } catch (e) { onMessage(e instanceof Error ? e.message : 'Message could not be updated.'); } }
-  return <section className="admin-panel"><div className="admin-panel-heading"><div><span className="section-kicker">PRIVATE CONTACT MESSAGES</span><h2>Creator inbox</h2><p>Contact messages are only available to signed-in staff.</p></div><Inbox size={19} /></div>{loading ? <div className="admin-empty">Loading inbox…</div> : rows.length ? <div className="admin-inbox-list">{rows.map(row => <article className={`inbox-row ${row.reviewed ? 'is-reviewed' : ''}`} key={row.id}><div><strong>{row.name}</strong><a href={`mailto:${row.email}`}>{row.email}</a><time>{formatDate(row.created_at)}</time><p>{row.message}</p></div><button className="button button-outline button-small" onClick={() => void mark(row)}>{row.reviewed ? 'Mark unread' : 'Mark reviewed'}</button></article>)}</div> : <div className="admin-empty"><Mail size={22} /><h3>No messages yet.</h3><p>Messages from the public Contact page appear here.</p></div>}</section>;
+  async function archive(row: ContactInboxItem) { try { await api.archiveContact(row.id, !row.archived); onMessage(row.archived ? 'Message restored to the inbox.' : 'Message archived.'); await reload(); } catch (e) { onMessage(e instanceof Error ? e.message : 'Message could not be archived.'); } }
+  async function remove(row: ContactInboxItem) { if (!window.confirm(`Permanently delete the message from ${row.name}? This cannot be undone.`)) return; try { await api.deleteContact(row.id); onMessage('Message deleted.'); await reload(); } catch (e) { onMessage(e instanceof Error ? e.message : 'Message could not be deleted.'); } }
+  return <section className="admin-panel"><div className="admin-panel-heading"><div><span className="section-kicker">PRIVATE CONTACT MESSAGES</span><h2>{showArchived ? 'Archived messages' : 'Creator inbox'}</h2><p>Contact messages are only available to signed-in staff.</p></div><button className="button button-outline button-small" onClick={() => setShowArchived(value => !value)}>{showArchived ? 'Back to inbox' : 'View archive'}</button></div>{loading ? <div className="admin-empty">Loading inbox…</div> : rows.length ? <div className="admin-inbox-list">{rows.map(row => <article className={`inbox-row ${row.reviewed ? 'is-reviewed' : ''}`} key={row.id}><div><strong>{row.name}</strong><a href={`mailto:${row.email}`}>{row.email}</a><time>{formatDate(row.created_at)}</time><p>{row.message}</p></div><div className="inbox-row-actions"><button className="button button-outline button-small" onClick={() => void mark(row)}>{row.reviewed ? 'Mark unread' : 'Mark reviewed'}</button><button className="button button-outline button-small" onClick={() => void archive(row)}>{row.archived ? 'Restore' : 'Archive'}</button><button className="button button-outline button-small inbox-delete-button" onClick={() => void remove(row)}>Delete</button></div></article>)}</div> : <div className="admin-empty"><Mail size={22} /><h3>{showArchived ? 'No archived messages.' : 'No messages yet.'}</h3><p>{showArchived ? 'Messages you archive appear here until deleted.' : 'Messages from the public Contact page appear here.'}</p></div>}</section>;
 }
 
 function AnalyticsPanel({ onMessage }: { onMessage: (message: string) => void }) {

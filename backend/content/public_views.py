@@ -2,7 +2,7 @@ from xml.sax.saxutils import escape
 
 from django.http import HttpResponse
 from django.utils import timezone
-from django.utils.feedgenerator import Rss201rev2Feed
+from django.utils.feedgenerator import Atom1Feed, Rss201rev2Feed
 
 from .models import ContentItem
 
@@ -30,6 +30,28 @@ def rss_feed(request):
             pubdate=item.published_at or item.created_at,
         )
     return HttpResponse(feed.writeString('utf-8'), content_type='application/rss+xml; charset=utf-8')
+
+
+def atom_feed(request):
+    origin = request.build_absolute_uri('/').rstrip('/')
+    feed = Atom1Feed(
+        title='ALIB — Digital Home',
+        link=origin,
+        feed_url=request.build_absolute_uri('/atom.xml'),
+        description='New articles, projects, and resources from ALIB.',
+        language='en',
+    )
+    for item in public_items()[:50]:
+        link = request.build_absolute_uri(f'/content/{item.slug}')
+        feed.add_item(
+            title=item.title,
+            link=link,
+            description=item.summary or item.body[:500],
+            unique_id=link,
+            updateddate=item.updated_at,
+            published=item.published_at or item.created_at,
+        )
+    return HttpResponse(feed.writeString('utf-8'), content_type='application/atom+xml; charset=utf-8')
 
 
 def sitemap_xml(request):
