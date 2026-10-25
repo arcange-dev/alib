@@ -916,6 +916,7 @@ kbd { padding: 2px 5px; color: var(--muted); background: var(--surface-soft); bo
   .admin-sidebar.is-collapsed .admin-menu svg { width: 18px; height: 18px; }
   .admin-sidebar.is-collapsed .admin-menu-link { margin-top: 16px; padding-top: 0; }
   .admin-sidebar.is-collapsed .admin-sidebar-bottom { flex-direction: column; gap: 8px; padding-inline: 0; }
+  .admin-sidebar.is-collapsed .admin-avatar { display: none; }
   .admin-sidebar.is-collapsed .admin-sidebar-bottom .icon-button { margin-left: 0; }
   .admin-page.sidebar-small .admin-main { margin-left: 78px; }
 }

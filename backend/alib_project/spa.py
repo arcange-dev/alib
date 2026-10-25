@@ -10,4 +10,8 @@ def frontend_app(request, path=''):
             {'detail': 'The frontend has not been built. Run the frontend build and copy it into backend/static/frontend.'},
             status=503,
         )
-    return FileResponse(index_path.open('rb'), content_type='text/html; charset=utf-8')
+    response = FileResponse(index_path.open('rb'), content_type='text/html; charset=utf-8')
+    # Hashed asset bundles can be cached forever, but the shell itself must always
+    # revalidate so every deploy reaches visitors instead of a stale bundle.
+    response['Cache-Control'] = 'no-cache, must-revalidate'
+    return response

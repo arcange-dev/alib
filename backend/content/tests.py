@@ -153,6 +153,11 @@ class MediaAssetAdminTests(TestCase):
         self.assertEqual(response.status_code, 204)
         self.assertFalse(MediaAsset.objects.filter(pk=asset.pk).exists())
 
+    def test_app_shell_is_served_without_browser_caching(self):
+        response = self.client.get('/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Cache-Control'], 'no-cache, must-revalidate')
+
     def test_anonymous_user_cannot_edit_or_delete_media(self):
         client = APIClient()
         asset = self._asset()
