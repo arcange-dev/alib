@@ -105,3 +105,18 @@ The site/database can deploy without Storage. To enable uploads later:
 - **Static assets return 404:** verify `backend/static/frontend/assets` was created during build and `collectstatic` succeeded.
 - **CSRF sign-in error:** use the exact HTTPS Render URL consistently and redeploy after environment changes.
 - **Upload says storage is not configured:** add the optional Storage environment variables and create the private bucket.
+
+## Scheduled publishing
+
+Scheduled items are saved with a `scheduled_for` date/time. The backend includes an idempotent `python manage.py publish_scheduled` command; an event only publishes when that command runs. To automate publishing without a continuously running web worker, the repository includes `.github/workflows/publish-scheduled.yml`, which triggers every 15 minutes and can also be run manually.
+
+After the Render service is deployed:
+
+1. Set a random, high-entropy `ALIB_SCHEDULER_TOKEN` value in the Render service Environment (at least 32 characters). Keep it private.
+2. In GitHub, open **Settings → Secrets and variables → Actions** for this repository.
+3. Add `ALIB_SCHEDULER_URL` with the complete URL `https://YOUR-RENDER-HOST/api/v1/admin/maintenance/publish-scheduled/`.
+4. Add `ALIB_SCHEDULER_TOKEN` using exactly the same value as the Render environment variable.
+5. Run the **Publish scheduled ALIB content** workflow once manually to verify it, then check the workflow log and Django logs.
+
+Until both GitHub secrets are configured, the workflow intentionally skips. GitHub scheduled workflows can start late under load, and a free Render instance may need to wake before serving the request, so this is a practical best-effort scheduler rather than a real-time guarantee. For time-critical publishing, use a dedicated scheduler/worker and monitor failed runs.
+
