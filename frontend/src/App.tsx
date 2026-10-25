@@ -24,8 +24,8 @@ function renderCopyright(settings: SiteSettings | null | undefined): string {
   const year = String(new Date().getFullYear());
   const owner = settings?.owner_name?.trim() || 'Mukamyi Izere Arcange';
   const template = settings?.copyright_text?.trim() || '© {year} {owner_name}. All rights reserved.';
-  const value = template.replace(/\\{year\\}/gi, year).replace(/\\{owner_name\\}/gi, owner);
-  return value.replace(/(©\\s*)(?:19|20)\\d{2}/, `$1${year}`);
+  const value = template.replace(/\{year\}/gi, year).replace(/\{owner_name\}/gi, owner);
+  return value.replace(/(©\s*)(?:19|20)\d{2}/, \`$1\${year}\`);
 }
 
 function safeStorageGet(key: string): string | null {
