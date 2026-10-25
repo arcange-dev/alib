@@ -4,7 +4,7 @@ export type Visibility = 'public' | 'unlisted' | 'private';
 
 export interface Category { id: number; name: string; slug: string; description: string; }
 export interface Tag { id: number; name: string; slug: string; }
-export interface Collection { id: number; title: string; slug: string; description: string; cover_image_url: string; visibility?: 'public' | 'unlisted' | 'private'; display_order?: number; item_count?: number; }
+export interface Collection { id: number; title: string; slug: string; description: string; cover_image_url: string; visibility?: 'public' | 'unlisted' | 'private'; display_order?: number; item_count?: number; current_item_ids?: number[]; }
 export interface ContentItem {
   id: number; title: string; slug: string; summary: string; body: string; content_type: ContentType;
   source_url: string; cover_image_url: string; category: Category | null; tags: Tag[];
