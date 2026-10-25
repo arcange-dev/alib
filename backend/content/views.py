@@ -14,6 +14,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from urllib.parse import urlencode
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from rest_framework import status, viewsets
@@ -548,8 +549,14 @@ class NewsletterSubscribeAPIView(APIView):
         subscriber.confirmed_at = None
         subscriber.save(update_fields=['token_hash', 'is_active', 'confirmed_at', 'updated_at'])
         confirm_url = request.build_absolute_uri(f'/api/v1/newsletter/confirm/{token}/')
+        unsubscribe_url = request.build_absolute_uri('/api/v1/newsletter/unsubscribe/?' + urlencode({'email': email, 'token': token}))
+        message = (
+            f'Confirm your ALIB subscription by opening this link: {confirm_url}\n\n'
+            f'After confirmation, you can unsubscribe at any time using this link: {unsubscribe_url}\n\n'
+            'If you did not request this, ignore this message.'
+        )
         try:
-            sent = send_mail('Confirm your ALIB newsletter subscription', f'Confirm your subscription by opening this link: {confirm_url}\n\nIf you did not request this, ignore this message.', settings.DEFAULT_FROM_EMAIL, [email], fail_silently=False)
+            sent = send_mail('Confirm your ALIB newsletter subscription', message, settings.DEFAULT_FROM_EMAIL, [email], fail_silently=False)
         except Exception:
             sent = 0
         if not sent:
@@ -576,18 +583,25 @@ class NewsletterUnsubscribeAPIView(APIView):
     authentication_classes = []
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'newsletter'
-    def post(self, request):
-        email = str(request.data.get('email', '')).strip().lower()
-        token = str(request.data.get('token', '')).strip()
+
+    def _unsubscribe(self, email, token):
+        email = str(email or '').strip().lower()
+        token = str(token or '').strip()
         if not email or not token:
             raise ValidationError({'detail': 'Email and unsubscribe token are required.'})
         token_hash = hashlib.sha256(token.encode()).hexdigest()
-        subscriber = NewsletterSubscriber.objects.filter(email=email, token_hash=token_hash).first()
+        subscriber = NewsletterSubscriber.objects.filter(email=email, token_hash=token_hash, is_active=True).first()
         if subscriber is None:
-            return Response({'detail': 'Subscription not found.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'detail': 'An active subscription matching this link was not found.'}, status=status.HTTP_404_NOT_FOUND)
         subscriber.is_active = False
         subscriber.save(update_fields=['is_active', 'updated_at'])
         return Response({'detail': 'You have been unsubscribed.'})
+
+    def post(self, request):
+        return self._unsubscribe(request.data.get('email'), request.data.get('token'))
+
+    def get(self, request):
+        return self._unsubscribe(request.query_params.get('email'), request.query_params.get('token'))
 
 
 class MediaSignedUrlAPIView(APIView):
