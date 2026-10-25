@@ -44,6 +44,9 @@ function App() {
     if (!canonical) { canonical = document.createElement('link'); canonical.rel = 'canonical'; document.head.appendChild(canonical); }
     canonical.href = canonicalUrl;
     document.title = defaultTitle;
+    let robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
+    if (!robots) { robots = document.createElement('meta'); robots.name = 'robots'; document.head.appendChild(robots); }
+    robots.content = location.pathname.startsWith('/admin') || location.pathname.startsWith('/reset-password') ? 'noindex,nofollow' : 'index,follow';
     setMeta('property', 'og:url', canonicalUrl);
     setMeta('property', 'og:title', defaultTitle);
     setMeta('name', 'twitter:card', 'summary_large_image');
@@ -405,9 +408,22 @@ function ContentDetailPage() {
     setName('twitter:title', item.title);
     setName('twitter:description', item.summary || 'A considered entry from the ALIB archive.');
     if (item.cover_image_url) setProperty('og:image', item.cover_image_url);
+    else document.querySelector('meta[property="og:image"]')?.remove();
     let robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
     if (!robots) { robots = document.createElement('meta'); robots.name = 'robots'; document.head.appendChild(robots); }
     robots.content = item.status === 'published' && item.visibility === 'public' ? 'index,follow' : 'noindex,nofollow';
+    let structured = document.querySelector<HTMLScriptElement>('script[data-alib-structured-data="content"]');
+    if (!structured) { structured = document.createElement('script'); structured.type = 'application/ld+json'; structured.dataset.alibStructuredData = 'content'; document.head.appendChild(structured); }
+    structured.textContent = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': item.content_type === 'article' ? 'Article' : 'CreativeWork',
+      headline: item.title,
+      description: item.summary || '',
+      url: window.location.origin + location.pathname,
+      datePublished: item.published_at || item.created_at,
+      dateModified: item.updated_at || item.created_at,
+      image: item.cover_image_url || undefined,
+    });
     api.related(item.id).then(setRelated).catch(() => setRelated([]));
     api.reactions(item.id).then(result => setReactionCounts(result.counts)).catch(() => {});
     api.comments(item.id).then(result => setComments(result.results)).catch(() => setComments([]));
