@@ -30,6 +30,7 @@ describe('Creator Studio navigation', () => {
       else if (url.includes('/categories/') || url.includes('/tags/')) payload = { count: 0, next: null, previous: null, results: [] };
       else if (url.includes('/settings/')) payload = { site_title: 'ALIB', logo_url: '', favicon_url: '', seo_description: '', homepage_sections: ['featured', 'latest', 'categories', 'collections'], theme_preferences: { primary: '#2563eb', secondary: '#facc15' }, owner_name: 'Mukamyi Izere Arcange', copyright_text: '© {year} {owner_name}. All rights reserved.', site_copy: { 'home.hero.intro': 'A test homepage intro.' } };
       else if (url.includes('/profile/')) payload = { display_name: 'Mukamyi Izere Arcange', headline: 'A home for ideas worth keeping.', biography: 'Creator bio', avatar_url: '', location: '', social_links: {} };
+      else if (url.includes('/collections/')) payload = { count: 0, next: null, previous: null, results: [] };
       else if (url.includes('/analytics/event/')) payload = { detail: 'Event recorded.' };
       return { ok: true, status: 200, text: async () => JSON.stringify(payload) } as Response;
     }));
