@@ -778,7 +778,7 @@ class AdminNewsletterAPIView(APIView):
         active = request.query_params.get('active')
         if active in {'true', 'false'}:
             queryset = queryset.filter(is_active=(active == 'true'))
-        if request.query_params.get('export') == 'csv':
+        if request.query_params.get('export') == 'csv' or request.query_params.get('format') == 'csv':
             response = HttpResponse(content_type='text/csv; charset=utf-8')
             response['Content-Disposition'] = 'attachment; filename=alib-newsletter-subscribers.csv'
             writer = csv.writer(response)
