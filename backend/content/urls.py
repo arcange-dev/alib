@@ -29,6 +29,7 @@ urlpatterns = [
     path('admin/team/<int:user_id>/', AdminTeamMemberAPIView.as_view(), name='admin-team-member'),
     path('admin/settings/', AdminSiteSettingsAPIView.as_view(), name='admin-site-settings'),
     path('admin/contact/', ContactInboxAPIView.as_view(), name='admin-contact-inbox'),
+    path('admin/contact/<int:message_id>/', ContactInboxAPIView.as_view(), name='admin-contact-message'),
     path('analytics/event/', AnalyticsEventAPIView.as_view(), name='analytics-event'),
     path('newsletter/subscribe/', NewsletterSubscribeAPIView.as_view(), name='newsletter-subscribe'),
     path('newsletter/confirm/<str:token>/', NewsletterConfirmAPIView.as_view(), name='newsletter-confirm'),
