@@ -3,7 +3,7 @@ import { Link, NavLink, Route, Routes, useLocation, useParams, useSearchParams }
 import {
   ArrowDown, ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, Bookmark, Check, ChevronDown, CircleHelp, Clock3, Command,
   Compass, ExternalLink, FileText, Filter, FolderOpen, Globe2, Heart, History, Inbox, Layers3, Link2, LockKeyhole,
-  LogOut, Mail, Menu, MessageCircle, Moon, PenLine, Plus, Search, Share2, ShieldCheck, Sparkles, Sun, ThumbsUp, Trash2, Upload, Video, X, BarChart3, Settings2, Users,
+  LogOut, Mail, Menu, MessageCircle, Moon, PenLine, Plus, Search, Share2, ShieldCheck, Sparkles, Sun, ThumbsUp, Trash2, Upload, Video, X, BarChart3, Settings2, Users, UserRound,
 } from 'lucide-react';
 import { api, type AdminStats, type AdminUser, type AnalyticsSummary, type ContactInboxItem, type ContentComment, type ContentRevision, type SiteSettings, type TeamMember, type TeamRole } from './api';
 import type { Category, Collection, ContentItem, ContentType, CreatorProfile, HomePayload, MediaAsset } from './types';
@@ -125,9 +125,12 @@ function useHome() {
 
 function HomePage() {
   const { data, error } = useHome();
+  const [homeSections, setHomeSections] = useState<string[]>(['featured', 'latest', 'categories', 'collections']);
+  useEffect(() => { api.settings().then(settings => setHomeSections(settings.homepage_sections || ['featured', 'latest', 'categories', 'collections'])).catch(() => {}); }, []);
   const profile = data?.profile || fallbackProfile;
   const latest = data?.latest || [];
   const featured = data?.featured || [];
+  const showSection = (name: string) => homeSections.includes(name);
   return <>
     <section className="hero section-wrap">
       <div className="hero-copy">
@@ -153,16 +156,20 @@ function HomePage() {
       <div className="section-kicker">THE IDEA / 001</div><div className="intro-band-copy"><h2>Not just a portfolio.<br /><em>A place to wander.</em></h2><p>Some things deserve more than a bookmark. ALIB brings together the work being made, the ideas being explored, and the resources worth passing along — all in one thoughtful, searchable place.</p><Link className="text-link" to="/about">Get to know the space <ArrowUpRight size={16} /></Link></div>
     </section>
 
-    <section className="section-wrap section-block">
+    {showSection('featured') && <section className="section-wrap section-block">
       <SectionHeading kicker="THE HIGHLIGHTS / 02" title="Worth a closer look" linkTo="/discover" linkLabel="Explore everything" />
       {error && <InlineNotice text="The API is not connected yet. The site is ready for your first published items; check the setup guide to connect the database." />}
       {featured.length ? <ContentGrid items={featured.slice(0, 3)} /> : <EmptyFeature />}
-    </section>
+    </section>}
 
-    <section className="section-wrap section-block latest-block">
+    {showSection('latest') && <section className="section-wrap section-block latest-block">
       <SectionHeading kicker="RECENTLY ADDED / 03" title="Fresh from the archive" linkTo="/discover" linkLabel="Browse the archive" />
       {latest.length ? <ContentGrid items={latest.slice(0, 4)} compact /> : <div className="empty-list"><div className="empty-icon"><FolderOpen size={23} /></div><div><h3>The first page is still unwritten.</h3><p>Publish an article, save a useful link, or add a project in Creator Studio. It will appear here automatically.</p></div><Link to="/admin" className="button button-outline">Open Creator Studio <ArrowUpRight size={15} /></Link></div>}
-    </section>
+    </section>}
+
+    {showSection('categories') && Boolean(data?.categories.length) && <section className="section-wrap section-block"><SectionHeading kicker="BROWSE BY TOPIC / 04" title="A few ways to explore" linkTo="/discover" linkLabel="All topics" /><div className="homepage-category-grid">{data?.categories.map(category => <Link className="homepage-category" key={category.id} to={`/discover?category=${category.id}`}><span>{category.name}</span><ArrowUpRight size={16} /></Link>)}</div></section>}
+
+    {showSection('collections') && Boolean(data?.collections.length) && <section className="section-wrap section-block"><SectionHeading kicker="CURATED BY HAND / 05" title="Explore by collection" linkTo="/collections" linkLabel="All collections" /><div className="collection-grid">{data?.collections.slice(0, 3).map((collection, index) => <Link key={collection.id} className={`collection-card collection-card-${index % 3}`} to={`/collections/${collection.slug}`}>{collection.cover_image_url ? <img src={collection.cover_image_url} alt="" loading="lazy" /> : <div className="collection-graphic"><span>0{index + 1}</span><Layers3 size={40} strokeWidth={1.2} /></div>}<span className="section-kicker">COLLECTION / {String(index + 1).padStart(2, '0')}</span><h2>{collection.title}</h2><p>{collection.description}</p><span className="collection-link">Open collection <ArrowUpRight size={15} /></span></Link>)}</div></section>}
 
     <section className="section-wrap section-block pathways-block">
       <SectionHeading kicker="FIND YOUR WAY / 04" title="Different paths in." />
@@ -538,7 +545,7 @@ function AdminLogin({ onLogin, error, setError }: { onLogin: (u: AdminUser) => v
 }
 
 function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => void }) {
-  const [tab, setTab] = useState<'overview' | 'content' | 'editor' | 'media' | 'settings' | 'collections' | 'inbox' | 'analytics' | 'moderation' | 'comments' | 'team'>('overview'); const [stats, setStats] = useState<AdminStats | null>(null); const [items, setItems] = useState<ContentItem[]>([]); const [media, setMedia] = useState<MediaAsset[]>([]); const [mediaAltText, setMediaAltText] = useState<Record<number, string>>({}); const [busy, setBusy] = useState(false); const [message, setMessage] = useState(''); const [editId, setEditId] = useState<number | undefined>();
+  const [tab, setTab] = useState<'overview' | 'content' | 'editor' | 'media' | 'settings' | 'profile' | 'collections' | 'inbox' | 'analytics' | 'moderation' | 'comments' | 'team'>('overview'); const [stats, setStats] = useState<AdminStats | null>(null); const [items, setItems] = useState<ContentItem[]>([]); const [media, setMedia] = useState<MediaAsset[]>([]); const [mediaAltText, setMediaAltText] = useState<Record<number, string>>({}); const [busy, setBusy] = useState(false); const [message, setMessage] = useState(''); const [editId, setEditId] = useState<number | undefined>();
   const emptyForm = { title: '', slug: '', summary: '', body: '', content_type: 'article' as ContentType, source_url: '', cover_image_url: '', status: 'draft', visibility: 'public', featured: false, allow_download: false, scheduled_for: '' };
   const [form, setForm] = useState(emptyForm);
   const role = user.role || 'editor';
@@ -585,6 +592,7 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
       {canManage && <button className={tab === 'editor' ? 'selected' : ''} onClick={newItem}><Plus size={17} /> New content</button>}
       {canManage && <button className={tab === 'media' ? 'selected' : ''} onClick={() => { setTab('media'); void loadMedia(); }}><FolderOpen size={17} /> Media library</button>}
       {canManage && <button className={tab === 'collections' ? 'selected' : ''} onClick={() => setTab('collections')}><Layers3 size={17} /> Collections</button>}
+      {canManage && <button className={tab === 'profile' ? 'selected' : ''} onClick={() => setTab('profile')}><UserRound size={17} /> Creator profile</button>}
       {isAdmin && <button className={tab === 'settings' ? 'selected' : ''} onClick={() => setTab('settings')}><Settings2 size={17} /> Site settings</button>}
       {canModerate && <button className={tab === 'inbox' ? 'selected' : ''} onClick={() => setTab('inbox')}><Inbox size={17} /> Contact inbox</button>}
       <button className={tab === 'analytics' ? 'selected' : ''} onClick={() => setTab('analytics')}><BarChart3 size={17} /> Analytics</button>
@@ -593,7 +601,7 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
       {isAdmin && <button className={tab === 'team' ? 'selected' : ''} onClick={() => setTab('team')}><Users size={17} /> Team access</button>}
       <Link to="/" className="admin-menu-link"><Globe2 size={17} /> View public site <ArrowUpRight size={14} /></Link>
     </nav><div className="admin-sidebar-bottom"><div className="admin-avatar">{user.username.slice(0, 1).toUpperCase()}</div><div className="admin-user-meta"><strong>{user.username}</strong><span>Administrator</span></div><button className="icon-button" onClick={onSignOut} aria-label="Sign out"><LogOut size={17} /></button></div></aside>
-    <div className="admin-main"><header className="admin-topbar"><div><span className="section-kicker">ALIB / WORKSPACE</span><span className="admin-breadcrumb">{({ overview: 'Overview', content: 'All content', editor: editId ? 'Edit content' : 'New content', media: 'Media library', settings: 'Site settings', collections: 'Collections', inbox: 'Contact inbox', analytics: 'Analytics', moderation: 'Suggestions', comments: 'Comments', team: 'Team access' } as Record<string, string>)[tab]}</span></div><div className="admin-topbar-actions"><span className="admin-live-status"><span className="status-dot" /> Connected as {user.username}</span>{canManage && <button className="button button-primary button-small" onClick={newItem}><Plus size={15} /> Create content</button>}</div></header>
+    <div className="admin-main"><header className="admin-topbar"><div><span className="section-kicker">ALIB / WORKSPACE</span><span className="admin-breadcrumb">{({ overview: 'Overview', content: 'All content', editor: editId ? 'Edit content' : 'New content', media: 'Media library', settings: 'Site settings', profile: 'Creator profile', collections: 'Collections', inbox: 'Contact inbox', analytics: 'Analytics', moderation: 'Suggestions', comments: 'Comments', team: 'Team access' } as Record<string, string>)[tab]}</span></div><div className="admin-topbar-actions"><span className="admin-live-status"><span className="status-dot" /> Connected as {user.username}</span>{canManage && <button className="button button-primary button-small" onClick={newItem}><Plus size={15} /> Create content</button>}</div></header>
       <div className="admin-content-area">{message && <div className={message.toLowerCase().includes('could not') || message.toLowerCase().includes('unable') ? 'error-message' : 'success-message'} role="status">{message}<button onClick={() => setMessage('')} aria-label="Dismiss message"><X size={15} /></button></div>}
       {tab === 'overview' && <><div className="admin-welcome"><div><span className="section-kicker">YOUR DIGITAL HOME</span><h1>Good to see you, {user.username}.</h1><p>Here’s what’s happening in your archive.</p></div><button className="button button-outline" onClick={() => void reload()} disabled={busy}>{busy ? 'Refreshing…' : 'Refresh data'} <Clock3 size={15} /></button></div><div className="admin-stat-grid"><AdminStat icon={<FileText size={18} />} label="Published" value={stats?.published ?? '—'} hint="Visible to visitors" /><AdminStat icon={<PenLine size={18} />} label="Drafts" value={stats?.drafts ?? '—'} hint="Still in the studio" /><AdminStat icon={<Clock3 size={18} />} label="Scheduled" value={stats?.scheduled ?? '—'} hint="Waiting to publish" /><AdminStat icon={<FolderOpen size={18} />} label="Media assets" value={stats?.assets ?? '—'} hint="Stored asset records" /></div><div className="admin-overview-grid"><section className="admin-panel recent-content-panel"><div className="admin-panel-heading"><div><span className="section-kicker">THE ARCHIVE</span><h2>Recent content</h2></div><button className="text-link" onClick={() => setTab('content')}>View all <ArrowRight size={15} /></button></div>{items.slice(0, 5).length ? <div className="admin-recent-list">{items.slice(0, 5).map(item => <div key={item.id} className="admin-recent-row"><div className="admin-recent-icon"><FileText size={17} /></div><div className="admin-recent-meta"><strong>{item.title}</strong><span>{labelType(item.content_type)} · updated {formatDate(item.updated_at)}</span></div><StatusPill status={item.status} /><button className="icon-button" aria-label={`Edit ${item.title}`} onClick={() => editItem(item)}><ArrowUpRight size={16} /></button></div>)}</div> : <div className="admin-empty"><PenLine size={22} /><h3>Your content starts here.</h3><p>Create a draft or publish a first item. Publicly published items become discoverable automatically.</p><button className="button button-primary" onClick={newItem}><Plus size={15} /> Create first item</button></div>}</section><section className="admin-panel quick-actions-panel"><div className="admin-panel-heading"><div><span className="section-kicker">QUICK ACTIONS</span><h2>Keep things moving</h2></div><Command size={19} /></div><button className="quick-action" onClick={newItem}><span className="quick-action-icon"><Plus size={17} /></span><span><strong>Write something new</strong><small>Create an article, link, project, or resource.</small></span><ArrowRight size={16} /></button><button className="quick-action" onClick={() => { setTab('media'); void loadMedia(); }}><span className="quick-action-icon"><Upload size={17} /></span><span><strong>Add a media asset</strong><small>Manage covers and permitted downloads.</small></span><ArrowRight size={16} /></button><Link className="quick-action" to="/" target="_blank"><span className="quick-action-icon"><Globe2 size={17} /></span><span><strong>Preview the public site</strong><small>See the visitor experience.</small></span><ArrowUpRight size={16} /></Link><div className="security-note"><ShieldCheck size={16} /><span>Publishing is controlled by your account permissions. Drafts are not shown to anonymous visitors.</span></div></section></div></>}
       {tab === 'content' && <section className="admin-panel content-management-panel"><div className="admin-panel-heading"><div><span className="section-kicker">CONTENT MANAGER</span><h2>Everything in the archive</h2><p>{items.length} items returned by the API</p></div><button className="button button-primary" onClick={newItem}><Plus size={15} /> New item</button></div><div className="content-table-wrap"><table className="content-table"><thead><tr><th>Title</th><th>Type</th><th>Status</th><th>Visibility</th><th>Updated</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>{items.map(item => <tr key={item.id}><td><div className="table-title"><span className="table-thumb"><FileText size={16} /></span><span><strong>{item.title}</strong><small>/{item.slug}</small></span></div></td><td>{labelType(item.content_type)}</td><td><StatusPill status={item.status} /></td><td><span className="visibility-label">{item.visibility}</span></td><td>{formatDate(item.updated_at)}</td><td><div className="table-actions"><button className="icon-button" onClick={() => editItem(item)} aria-label={`Edit ${item.title}`}><PenLine size={15} /></button><button className="icon-button danger-icon" onClick={() => void removeItem(item)} aria-label={`Delete ${item.title}`}><Trash2 size={15} /></button></div></td></tr>)}</tbody></table>{!items.length && <div className="table-empty"><FolderOpen size={22} /><p>No items have been added yet.</p><button className="button button-outline" onClick={newItem}><Plus size={15} /> Create your first item</button></div>}</div></section>}
@@ -614,6 +622,7 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
     </div>
 
       {tab === 'settings' && <SiteSettingsPanel onMessage={setMessage} />}
+      {tab === 'profile' && canManage && <CreatorProfilePanel onMessage={setMessage} />}
       {tab === 'team' && isAdmin && <TeamManagementPanel isOwner={Boolean(user.is_superuser)} onMessage={setMessage} />}
       {tab === 'collections' && <CollectionsManagerPanel items={items} onMessage={setMessage} />}
       {tab === 'inbox' && <ContactInboxPanel onMessage={setMessage} />}
@@ -675,6 +684,35 @@ function RevisionHistoryPanel({ itemId, onRestored }: { itemId: number; onRestor
     finally { setBusyId(null); }
   }
   return <section className="admin-panel revision-panel"><div className="admin-panel-heading"><div><span className="section-kicker">VERSION HISTORY</span><h2>Saved revisions</h2></div><History size={18} /></div>{error && <p className="error-message">{error}</p>}{revisions.length ? revisions.slice(0, 8).map(rev => <div className="revision-row" key={rev.id}><div><strong>Revision {rev.revision_number}</strong><span>{rev.editor_username || 'System'} · {formatDate(rev.created_at)}</span><small>{String(rev.snapshot.title || 'Untitled')}</small></div><button className="button button-outline button-small" disabled={busyId === rev.id} onClick={() => void restore(rev.id)}>{busyId === rev.id ? 'Restoring…' : 'Restore'}</button></div>) : !error && <p className="panel-muted">No saved revisions returned yet.</p>}</section>;
+}
+
+function CreatorProfilePanel({ onMessage }: { onMessage: (message: string) => void }) {
+  const [profile, setProfile] = useState<CreatorProfile>(fallbackProfile);
+  const [socialJson, setSocialJson] = useState('{}');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    api.profile().then(value => { setProfile(value); setSocialJson(JSON.stringify(value.social_links || {}, null, 2)); })
+      .catch(e => onMessage(e instanceof Error ? e.message : 'Profile could not load.'))
+      .finally(() => setLoading(false));
+  }, []);
+  function setField<K extends keyof CreatorProfile>(key: K, value: CreatorProfile[K]) { setProfile(prev => ({ ...prev, [key]: value })); }
+  async function save(e: FormEvent) {
+    e.preventDefault(); setSaving(true);
+    let links: Record<string, string>;
+    try {
+      const parsed = JSON.parse(socialJson);
+      if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object' || Object.values(parsed).some(value => typeof value !== 'string')) throw new Error('Social links must be a JSON object with text values.');
+      links = parsed as Record<string, string>;
+    } catch (e) { onMessage(e instanceof Error ? e.message : 'Social links must be valid JSON.'); setSaving(false); return; }
+    try {
+      const saved = await api.saveProfile({ ...profile, social_links: links });
+      setProfile(saved); setSocialJson(JSON.stringify(saved.social_links || {}, null, 2));
+      onMessage('Creator profile saved.');
+    } catch (e) { onMessage(e instanceof Error ? e.message : 'Profile could not be saved.'); }
+    finally { setSaving(false); }
+  }
+  return <section className="admin-panel settings-panel"><div className="admin-panel-heading"><div><span className="section-kicker">PUBLIC CREATOR PROFILE</span><h2>About the creator</h2><p>{loading ? 'Loading profile…' : 'These fields appear on the public site.'}</p></div><UserRound size={19} /></div><form className="settings-form" onSubmit={save}><div className="form-two-col"><label>Display name<input required maxLength={120} value={profile.display_name} onChange={e => setField('display_name', e.target.value)} /></label><label>Location<input maxLength={120} value={profile.location} onChange={e => setField('location', e.target.value)} placeholder="Optional" /></label></div><label>Headline<input required maxLength={240} value={profile.headline} onChange={e => setField('headline', e.target.value)} /></label><label>Biography<textarea rows={6} maxLength={5000} value={profile.biography} onChange={e => setField('biography', e.target.value)} /></label><label>Avatar image URL<input type="url" value={profile.avatar_url} onChange={e => setField('avatar_url', e.target.value)} placeholder="https://… (optional)" /></label><label>Social links (JSON object)<textarea rows={4} spellCheck={false} value={socialJson} onChange={e => setSocialJson(e.target.value)} placeholder={'{ "website": "https://example.com" }'} /></label><button className="button button-primary" disabled={saving || loading}>{saving ? 'Saving…' : 'Save creator profile'} <Check size={15} /></button></form></section>;
 }
 
 function SiteSettingsPanel({ onMessage }: { onMessage: (message: string) => void }) {
