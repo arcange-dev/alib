@@ -509,7 +509,7 @@ function ContentBody({ body }: { body: string }) {
   const blocks = body.replace(/\r\n/g, '\n').split(/\n\s*\n/).filter(block => block.trim());
   return <div className="content-markdown">{blocks.map((block, index) => {
     const trimmed = block.trim();
-    const lines = trimmed.split('\\n');
+    const lines = trimmed.split('\n');
     const heading = trimmed.match(/^(#{1,3})\s+(.+)$/);
     if (trimmed.startsWith('```') && trimmed.endsWith('```') && lines.length >= 2) {
       const code = lines.slice(1, -1).join('\n');
