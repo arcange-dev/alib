@@ -73,7 +73,7 @@ Anonymous visitors only see public, published content. The Creator Studio can cr
 
 Advanced YouTube/Instagram metadata ingestion, newsletter-provider integration, analytics reporting, a background scheduler, rich WYSIWYG editing, full profile/appearance settings UI, and browser end-to-end tests remain follow-on work. No fake analytics or invented personal profile details are seeded.
 
-See [deployment instructions](docs/deployment.md), [architecture](docs/architecture.md), [security](docs/security.md), and [Supabase Storage setup](supabase/README.md).
+See the [20-feature completion roadmap](docs/feature-roadmap.md), [deployment instructions](docs/deployment.md), [architecture](docs/architecture.md), [security](docs/security.md), and [Supabase Storage setup](supabase/README.md).
 
 ## UI/UX Pro Max
 
