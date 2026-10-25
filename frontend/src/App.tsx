@@ -298,19 +298,129 @@ function LoadingRows() { return <div className="loading-grid" aria-label="Loadin
 function EmptyState({ title, body, action }: { title: string; body: string; action?: ReactNode }) { return <div className="empty-state"><div className="empty-icon"><FolderOpen size={24} /></div><h2>{title}</h2><p>{body}</p>{action}</div>; }
 
 function ContentDetailPage() {
-  const { slug = '' } = useParams(); const [item, setItem] = useState<ContentItem | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState('');
-  useEffect(() => { api.contentDetail(slug).then(setItem).catch(e => setError(e instanceof Error ? e.message : 'This item is unavailable.')).finally(() => setLoading(false)); }, [slug]);
+  const { slug = '' } = useParams();
+  const location = useLocation();
+  const [item, setItem] = useState<ContentItem | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
-  async function copyLink() { try { await navigator.clipboard.writeText(window.location.href); setCopied(true); window.setTimeout(() => setCopied(false), 1800); } catch { setError('Copying is unavailable in this browser.'); } }
+  const [related, setRelated] = useState<ContentItem[]>([]);
+  const [reactionCounts, setReactionCounts] = useState<Record<'like' | 'love' | 'useful', number>>({ like: 0, love: 0, useful: 0 });
+  const [comments, setComments] = useState<ContentComment[]>([]);
+  const [commentName, setCommentName] = useState('');
+  const [commentEmail, setCommentEmail] = useState('');
+  const [commentBody, setCommentBody] = useState('');
+  const [commentMessage, setCommentMessage] = useState('');
+  const [commentBusy, setCommentBusy] = useState(false);
+  useEffect(() => {
+    setLoading(true); setError(''); setItem(null);
+    api.contentDetail(slug).then(setItem).catch(e => setError(e instanceof Error ? e.message : 'This item is unavailable.')).finally(() => setLoading(false));
+  }, [slug]);
+  useEffect(() => {
+    if (!item) return;
+    document.title = `${item.title} | ALIB`;
+    const description = document.querySelector('meta[name="description"]');
+    if (description && item.summary) description.setAttribute('content', item.summary);
+    api.related(item.id).then(setRelated).catch(() => setRelated([]));
+    api.reactions(item.id).then(result => setReactionCounts(result.counts)).catch(() => {});
+    api.comments(item.id).then(result => setComments(result.results)).catch(() => setComments([]));
+  }, [item?.id]);
+  async function copyLink() {
+    try { await navigator.clipboard.writeText(window.location.href); setCopied(true); window.setTimeout(() => setCopied(false), 1800); }
+    catch { setError('Copying is unavailable in this browser.'); }
+  }
+  async function shareItem() {
+    if (navigator.share) {
+      try { await navigator.share({ title: item?.title || 'ALIB', text: item?.summary || '', url: window.location.href }); return; }
+      catch (e) { if (e instanceof DOMException && e.name === 'AbortError') return; }
+    }
+    await copyLink();
+  }
+  async function reactToItem(reaction: 'like' | 'love' | 'useful') {
+    if (!item) return;
+    try {
+      const result = await api.react(item.id, reaction);
+      setReactionCounts(result.counts);
+      setCommentMessage(result.recorded ? 'Thanks for sharing your reaction.' : 'Your reaction was already recorded from this connection.');
+    } catch (e) { setCommentMessage(e instanceof Error ? e.message : 'Reaction could not be saved.'); }
+  }
+  async function submitComment(e: FormEvent) {
+    e.preventDefault();
+    if (!item) return;
+    setCommentBusy(true); setCommentMessage('');
+    try {
+      await api.submitComment({ item_id: item.id, name: commentName, email: commentEmail, body: commentBody });
+      setCommentMessage('Your comment was submitted for moderation. It will appear after approval.');
+      setCommentName(''); setCommentEmail(''); setCommentBody('');
+    } catch (e) { setCommentMessage(e instanceof Error ? e.message : 'Comment could not be submitted.'); }
+    finally { setCommentBusy(false); }
+  }
   if (loading) return <div className="page-wrap section-wrap detail-loading"><LoadingRows /></div>;
   if (!item) return <div className="page-wrap section-wrap"><EmptyState title="We couldn’t find that item." body={error || 'It may be private, unpublished, or have a different address.'} action={<Link to="/discover" className="button button-outline"><ArrowLeft size={15} /> Back to discovery</Link>} /></div>;
   const cover = item.cover_image_url;
-  return <article className="detail-page section-wrap page-enter"><Link className="back-link" to="/discover"><ArrowLeft size={15} /> Back to discovery</Link><header className="detail-header"><div className="eyebrow">{labelType(item.content_type).toUpperCase()} / ENTRY <span className="eyebrow-rule" /></div><h1>{item.title}</h1><p className="detail-summary">{item.summary}</p><div className="detail-byline"><span>{item.category?.name || 'ALIB archive'}</span><span>·</span><span>{formatDate(item.published_at || item.created_at)}</span><span>·</span><button className="inline-action" onClick={copyLink}>{copied ? <Check size={14} /> : <Link2 size={14} />}{copied ? 'Copied link' : 'Copy link'}</button></div></header>
+  return <article className="detail-page section-wrap page-enter">
+    <Link className="back-link" to="/discover"><ArrowLeft size={15} /> Back to discovery</Link>
+    <header className="detail-header">
+      <div className="eyebrow">{labelType(item.content_type).toUpperCase()} / ENTRY <span className="eyebrow-rule" /></div>
+      <h1>{item.title}</h1><p className="detail-summary">{item.summary}</p>
+      <div className="detail-byline"><span>{item.category?.name || 'ALIB archive'}</span><span>·</span><span>{formatDate(item.published_at || item.created_at)}</span><span>·</span><button className="inline-action" onClick={copyLink}>{copied ? <Check size={14} /> : <Link2 size={14} />}{copied ? 'Copied link' : 'Copy link'}</button></div>
+      <div className="detail-actions"><BookmarkButton itemId={item.id} /><button className="button button-outline button-small" onClick={() => void shareItem()}><Share2 size={15} /> Share</button></div>
+    </header>
     {cover ? <img className="detail-cover" src={cover} alt="" /> : <div className="detail-cover detail-cover-fallback"><DefaultCover type={item.content_type} title={item.title} /></div>}
-    <div className="detail-body-layout"><div className="detail-body">{item.body ? item.body.split(/\n\n+/).map((paragraph, i) => <p key={i}>{paragraph}</p>) : <p>This entry does not have a longer description yet.</p>}
-        {item.source_url && <div className="source-link-card"><div className="source-icon"><Globe2 size={20} /></div><div><span className="section-kicker">ORIGINAL SOURCE</span><h3>Continue exploring</h3><p>Open the original item on its source website.</p></div><a className="button button-primary" href={item.source_url} target="_blank" rel="noreferrer">Visit source <ExternalLink size={15} /></a></div>}
-      </div><aside className="detail-aside"><span className="section-kicker">IN THIS ENTRY</span>{item.tags?.length > 0 && <div className="detail-tag-list">{item.tags.map(tag => <Link key={tag.id} to={`/discover?q=${encodeURIComponent(tag.name)}`}>#{tag.name}</Link>)}</div>}<button className="button button-outline full-width" onClick={copyLink}>{copied ? <Check size={15} /> : <Link2 size={15} />}{copied ? 'Link copied' : 'Share this item'}</button></aside></div>
+    <div className="detail-body-layout">
+      <div className="detail-body">
+        <ContentBody body={item.body || 'This entry does not have a longer description yet.'} />
+        {item.source_url && <div className="source-link-card"><div className="source-icon"><Globe2 size={20} /></div><div><span className="section-kicker">ORIGINAL SOURCE</span><h3>Continue exploring</h3><p>Open the original item on its source website.</p></div><a className="button button-primary" href={item.source_url} target="_blank" rel="noreferrer" onClick={() => void api.analytics('outbound_click', location.pathname, item.id).catch(() => {})}>Visit source <ExternalLink size={15} /></a></div>}
+      </div>
+      <aside className="detail-aside"><span className="section-kicker">IN THIS ENTRY</span>{item.tags?.length > 0 && <div className="detail-tag-list">{item.tags.map(tag => <Link key={tag.id} to={`/discover?q=${encodeURIComponent(tag.name)}`}>#{tag.name}</Link>)}</div>}<button className="button button-outline full-width" onClick={() => void shareItem()}><Share2 size={15} /> Share this item</button><p className="detail-aside-note">RSS readers can follow the latest public posts from the <a href="/feed.xml">ALIB feed</a>.</p></aside>
+    </div>
+    <section className="reader-engagement">
+      <div className="reader-reactions"><span className="section-kicker">WAS THIS USEFUL?</span><div>
+        <button className="reaction-button" onClick={() => void reactToItem('like')}><ThumbsUp size={15} /> Like <span>{reactionCounts.like}</span></button>
+        <button className="reaction-button" onClick={() => void reactToItem('love')}><Heart size={15} /> Loved <span>{reactionCounts.love}</span></button>
+        <button className="reaction-button" onClick={() => void reactToItem('useful')}><Check size={15} /> Useful <span>{reactionCounts.useful}</span></button>
+      </div></div>
+      <div className="comments-area"><span className="section-kicker">COMMUNITY NOTES</span><h2>Leave a thoughtful comment</h2><p>Comments are reviewed before publication. Your email is kept private.</p>
+        {commentMessage && <div className={/could not|already|error|configure/i.test(commentMessage) ? 'inline-notice' : 'success-message'} role="status">{commentMessage}</div>}
+        <form className="comment-form" onSubmit={submitComment}><div className="form-two-col"><label>Your name<input required maxLength={120} value={commentName} onChange={e => setCommentName(e.target.value)} /></label><label>Email (not public)<input type="email" required value={commentEmail} onChange={e => setCommentEmail(e.target.value)} /></label></div><label>Comment<textarea required minLength={3} maxLength={3000} rows={4} value={commentBody} onChange={e => setCommentBody(e.target.value)} placeholder="Add something useful to the conversation…" /></label><button className="button button-primary" disabled={commentBusy}>{commentBusy ? 'Submitting…' : 'Submit for review'} <MessageCircle size={15} /></button></form>
+        {comments.length > 0 ? <div className="approved-comments">{comments.map(comment => <article className="approved-comment" key={comment.id}><strong>{comment.name}</strong><time>{formatDate(comment.created_at)}</time><p>{comment.body}</p></article>)}</div> : <p className="comment-empty">No approved comments yet.</p>}
+      </div>
+    </section>
+    {related.length > 0 && <section className="related-section"><SectionHeading kicker="CONTINUE EXPLORING" title="Related from the archive" linkTo="/discover" linkLabel="Browse all" /><ContentGrid items={related} compact /></section>}
   </article>;
+}
+
+function renderInlineMarkdown(text: string): ReactNode[] {
+  const pattern = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\(https?:\/\/[^)]+\))/g;
+  return text.split(pattern).filter(Boolean).map((part, index) => {
+    if (part.startsWith('**') && part.endsWith('**')) return <strong key={index}>{part.slice(2, -2)}</strong>;
+    if (part.startsWith('*') && part.endsWith('*')) return <em key={index}>{part.slice(1, -1)}</em>;
+    if (part.startsWith('`') && part.endsWith('`')) return <code key={index}>{part.slice(1, -1)}</code>;
+    const link = part.match(/^\[([^\]]+)\]\((https?:\/\/[^)]+)\)$/);
+    if (link) return <a key={index} href={link[2]} target="_blank" rel="noreferrer">{link[1]}</a>;
+    return part;
+  });
+}
+
+function ContentBody({ body }: { body: string }) {
+  const blocks = body.replace(/\r\n/g, '\n').split(/\n\s*\n/).filter(block => block.trim());
+  return <div className="content-markdown">{blocks.map((block, index) => {
+    const trimmed = block.trim();
+    const heading = trimmed.match(/^(#{1,3})\s+(.+)$/);
+    if (heading) {
+      const content = renderInlineMarkdown(heading[2]);
+      if (heading[1].length === 1) return <h2 key={index}>{content}</h2>;
+      if (heading[1].length === 2) return <h3 key={index}>{content}</h3>;
+      return <h4 key={index}>{content}</h4>;
+    }
+    if (trimmed.startsWith('> ')) return <blockquote key={index}>{renderInlineMarkdown(trimmed.slice(2))}</blockquote>;
+    const lines = trimmed.split('\n');
+    if (lines.every(line => /^[-*]\s+/.test(line))) return <ul key={index}>{lines.map((line, i) => <li key={i}>{renderInlineMarkdown(line.replace(/^[-*]\s+/, ''))}</li>)}</ul>;
+    if (lines.every(line => /^\d+\.\s+/.test(line))) return <ol key={index}>{lines.map((line, i) => <li key={i}>{renderInlineMarkdown(line.replace(/^\d+\.\s+/, ''))}</li>)}</ol>;
+    const image = trimmed.match(/^!\[([^\]]*)\]\((https?:\/\/[^)]+)\)$/);
+    if (image) return <figure key={index}><img loading="lazy" src={image[2]} alt={image[1]} /><figcaption>{image[1]}</figcaption></figure>;
+    return <p key={index}>{lines.map((line, i) => <span key={i}>{i > 0 && <br />}{renderInlineMarkdown(line)}</span>)}</p>;
+  })}</div>;
 }
 
 function CollectionsPage() {
