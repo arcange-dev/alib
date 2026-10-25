@@ -16,8 +16,9 @@ describe('ALIB public shell', () => {
 });
 
 describe('Creator Studio navigation', () => {
-  it('toggles the sidebar and remembers the preference', async () => {
+  it('cycles the sidebar through full, small, and hidden and remembers the preference', async () => {
     window.localStorage.removeItem('alib-studio-sidebar-collapsed');
+    window.localStorage.removeItem('alib-studio-sidebar-mode');
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       let payload: unknown = {};
@@ -32,18 +33,30 @@ describe('Creator Studio navigation', () => {
       return { ok: true, status: 200, text: async () => JSON.stringify(payload) } as Response;
     }));
     render(<MemoryRouter initialEntries={['/admin']}><App /></MemoryRouter>);
-    const collapseButton = await screen.findByRole('button', { name: 'Collapse sidebar' });
     const sidebar = document.querySelector('.admin-sidebar');
+    const layout = document.querySelector('.admin-page.admin-layout');
     expect(sidebar).not.toBeNull();
-    expect(document.querySelector('.admin-page.admin-layout')).not.toBeNull();
-    fireEvent.click(collapseButton);
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Expand sidebar' })).toBeTruthy());
+    expect(layout).not.toBeNull();
+    expect(layout?.classList.contains('sidebar-full')).toBe(true);
+
+    // full -> small (icon rail)
+    fireEvent.click(await screen.findByRole('button', { name: 'Collapse sidebar' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Hide sidebar' })).toBeTruthy());
     expect(sidebar?.classList.contains('is-collapsed')).toBe(true);
-    expect(window.localStorage.getItem('alib-studio-sidebar-collapsed')).toBe('true');
-    fireEvent.click(screen.getByRole('button', { name: 'Expand sidebar' }));
+    expect(window.localStorage.getItem('alib-studio-sidebar-mode')).toBe('small');
+
+    // small -> hidden
+    fireEvent.click(screen.getByRole('button', { name: 'Hide sidebar' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Show sidebar' })).toBeTruthy());
+    expect(sidebar?.classList.contains('is-hidden')).toBe(true);
+    expect(window.localStorage.getItem('alib-studio-sidebar-mode')).toBe('hidden');
+
+    // hidden -> full via the restore button in the topbar
+    fireEvent.click(screen.getByRole('button', { name: 'Show sidebar' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Collapse sidebar' })).toBeTruthy());
     expect(sidebar?.classList.contains('is-collapsed')).toBe(false);
-    expect(window.localStorage.getItem('alib-studio-sidebar-collapsed')).toBe('false');
+    expect(sidebar?.classList.contains('is-hidden')).toBe(false);
+    expect(window.localStorage.getItem('alib-studio-sidebar-mode')).toBe('full');
   });
 });
 
