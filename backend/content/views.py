@@ -5,9 +5,10 @@ from pathlib import PurePath
 from uuid import uuid4
 from django.conf import settings
 from django.contrib.auth import authenticate, login, logout, get_user_model
+from django.contrib.auth.models import Group
 from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.db.models import Count, Max
 from django.http import JsonResponse
 from django.utils import timezone
@@ -27,7 +28,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle, ScopedRateThrottle
 from rest_framework.views import APIView
 from .models import AnalyticsEvent, AuditEvent, Category, Collection, ContactMessage, ContentComment, ContentItem, ContentRevision, ContentReaction, CreatorProfile, MediaAsset, NewsletterSubscriber, SiteSettings, Tag, VisitorSuggestion
-from .permissions import PublicReadAdminWrite
+from .permissions import ADMIN_GROUP, EDITOR_GROUP, MODERATOR_GROUP, SUPPORT_GROUP, IsALIBAdministrator, IsALIBEditor, IsALIBModerator, IsALIBStaff, PublicReadAdminWrite, can_manage_content, can_moderate
 from .serializers import CategorySerializer, CollectionSerializer, ContentCommentSerializer, ContentItemSerializer, ContentRevisionSerializer, CreatorProfileSerializer, MediaAssetSerializer, SiteSettingsSerializer, TagSerializer, VisitorSuggestionSerializer
 from .storage import signed_object_url, upload_object
 
@@ -62,7 +63,7 @@ class ContentItemViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = ContentItem.objects.select_related('category').prefetch_related('tags', 'collections')
         user = self.request.user
-        if not (user.is_authenticated and user.is_staff):
+        if not can_manage_content(user):
             queryset = queryset.filter(status='published', visibility='public', published_at__lte=timezone.now())
         content_type = self.request.query_params.get('content_type') or self.request.query_params.get('type')
         if content_type:
@@ -85,12 +86,12 @@ class ContentItemViewSet(viewsets.ModelViewSet):
         _record_revision(item, self.request.user)
         AuditEvent.objects.create(actor=self.request.user, action='content.updated', object_type='ContentItem', object_id=str(item.pk), details={'title': item.title, 'status': item.status})
 
-    @action(detail=True, methods=['get'], permission_classes=[IsAdminUser], url_path='revisions')
+    @action(detail=True, methods=['get'], permission_classes=[IsALIBEditor], url_path='revisions')
     def revisions(self, request, pk=None):
         item = self.get_object()
         return Response(ContentRevisionSerializer(item.revisions.select_related('editor'), many=True).data)
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser], url_path='restore-revision')
+    @action(detail=True, methods=['post'], permission_classes=[IsALIBEditor], url_path='restore-revision')
     def restore_revision(self, request, pk=None):
         item = self.get_object()
         revision = item.revisions.filter(pk=request.data.get('revision_id')).first()
@@ -242,7 +243,7 @@ class CurrentUserAPIView(APIView):
         return Response({'id': user.pk, 'username': user.get_username(), 'email': user.email, 'is_staff': user.is_staff})
 
 class AdminStatsAPIView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsALIBStaff]
     def get(self, request):
         return Response({
             'published': ContentItem.objects.filter(status='published').count(),
@@ -283,11 +284,11 @@ class VisitorSuggestionViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action == 'create':
             return [AllowAny()]
-        return [IsAdminUser()]
+        return [IsALIBModerator()]
     def perform_create(self, serializer):
         serializer.save(status='pending')
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser], url_path='review')
+    @action(detail=True, methods=['post'], permission_classes=[IsALIBModerator], url_path='review')
     def review(self, request, pk=None):
         suggestion = self.get_object()
         decision = request.data.get('status')
@@ -302,11 +303,11 @@ class VisitorSuggestionViewSet(viewsets.ModelViewSet):
 
 class AdminMediaViewSet(viewsets.ModelViewSet):
     serializer_class = MediaAssetSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsALIBEditor]
     queryset = MediaAsset.objects.all()
 
 class MediaUploadAPIView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsALIBEditor]
     parser_classes = [MultiPartParser, FormParser]
     def post(self, request):
         uploaded = request.FILES.get('file')
@@ -427,8 +428,116 @@ class PublicSiteSettingsAPIView(APIView):
         return Response({'site_title': 'ALIB — Digital Home', 'logo_url': '', 'favicon_url': '', 'seo_description': 'A considered home for ideas, work, and curiosity.', 'homepage_sections': ['featured', 'latest', 'categories', 'collections'], 'theme_preferences': {'primary': '#2563eb', 'secondary': '#facc15'}})
 
 
+
+
+ROLE_GROUPS = {
+    'administrator': ADMIN_GROUP,
+    'editor': EDITOR_GROUP,
+    'moderator': MODERATOR_GROUP,
+    'support': SUPPORT_GROUP,
+}
+
+
+def _team_member_payload(user):
+    groups = set(user.groups.filter(name__in=ROLE_GROUPS.values()).values_list('name', flat=True))
+    if user.is_superuser or ADMIN_GROUP in groups:
+        role = 'administrator'
+    elif EDITOR_GROUP in groups:
+        role = 'editor'
+    elif MODERATOR_GROUP in groups:
+        role = 'moderator'
+    elif SUPPORT_GROUP in groups:
+        role = 'support'
+    else:
+        role = 'editor' if user.is_staff else 'none'
+    return {
+        'id': user.pk, 'username': user.get_username(), 'email': user.email,
+        'is_active': user.is_active, 'is_superuser': user.is_superuser,
+        'role': role, 'last_login': user.last_login,
+    }
+
+
+class AdminTeamAPIView(APIView):
+    permission_classes = [IsALIBAdministrator]
+
+    def get(self, request):
+        users = get_user_model().objects.filter(is_staff=True).prefetch_related('groups').order_by('username')
+        return Response([_team_member_payload(user) for user in users])
+
+    def post(self, request):
+        username = str(request.data.get('username', '')).strip()
+        email = str(request.data.get('email', '')).strip().lower()
+        role = str(request.data.get('role', 'editor')).strip().lower()
+        if not username or len(username) > 150:
+            raise ValidationError({'username': 'Enter a username up to 150 characters.'})
+        if not email:
+            raise ValidationError({'email': 'A work email is required to send the setup link.'})
+        if role not in ROLE_GROUPS:
+            raise ValidationError({'role': 'Choose administrator, editor, moderator, or support.'})
+        if role == 'administrator' and not request.user.is_superuser:
+            raise PermissionDenied('Only the owner superuser can assign the administrator role.')
+        User = get_user_model()
+        if User.objects.filter(username=username).exists() or User.objects.filter(email__iexact=email).exists():
+            raise ValidationError({'detail': 'That username or email is already in use.'})
+        group, _ = Group.objects.get_or_create(name=ROLE_GROUPS[role])
+        with transaction.atomic():
+            user = User(username=username, email=email, is_staff=True, is_active=True)
+            user.set_unusable_password()
+            user.save()
+            user.groups.add(group)
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
+            token = default_token_generator.make_token(user)
+            setup_url = request.build_absolute_uri(f'/reset-password?uid={uid}&token={token}')
+            try:
+                sent = send_mail(
+                    'You have been invited to ALIB Creator Studio',
+                    f'An administrator invited you to ALIB Creator Studio as {role}. Set your password here: {setup_url}\n\nIf you were not expecting this invitation, ignore this email.',
+                    settings.DEFAULT_FROM_EMAIL, [email], fail_silently=False,
+                )
+            except Exception:
+                sent = 0
+            if not sent:
+                user.delete()
+                return Response({'detail': 'Invitation email could not be sent. Configure SMTP, then try again. No staff account was retained.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            AuditEvent.objects.create(actor=request.user, action='team.invited', object_type='User', object_id=str(user.pk), details={'role': role, 'email': email})
+        return Response({'detail': 'Invitation sent. The new team member must set a password before signing in.', 'member': _team_member_payload(user)}, status=status.HTTP_201_CREATED)
+
+
+class AdminTeamMemberAPIView(APIView):
+    permission_classes = [IsALIBAdministrator]
+
+    def patch(self, request, user_id):
+        User = get_user_model()
+        member = User.objects.filter(pk=user_id, is_staff=True).first()
+        if member is None:
+            return Response({'detail': 'Staff member not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if member.is_superuser and not request.user.is_superuser:
+            raise PermissionDenied('Only the owner superuser can change the owner account.')
+        if member.pk == request.user.pk and request.data.get('is_active') is False:
+            raise ValidationError({'is_active': 'You cannot deactivate your own account.'})
+        if 'role' in request.data:
+            role = str(request.data.get('role', '')).strip().lower()
+            if role not in ROLE_GROUPS:
+                raise ValidationError({'role': 'Choose administrator, editor, moderator, or support.'})
+            if role == 'administrator' and not request.user.is_superuser:
+                raise PermissionDenied('Only the owner superuser can assign the administrator role.')
+            if member.is_superuser and role != 'administrator':
+                raise ValidationError({'role': 'The owner superuser cannot be demoted here.'})
+            if not member.is_superuser:
+                group, _ = Group.objects.get_or_create(name=ROLE_GROUPS[role])
+                member.groups.set([group])
+        if 'is_active' in request.data:
+            next_active = bool(request.data.get('is_active'))
+            if member.is_superuser and not next_active:
+                raise ValidationError({'is_active': 'Use a recovery procedure to disable the owner account.'})
+            member.is_active = next_active
+            member.save(update_fields=['is_active'])
+        AuditEvent.objects.create(actor=request.user, action='team.member_updated', object_type='User', object_id=str(member.pk), details={'role': _team_member_payload(member)['role'], 'is_active': member.is_active})
+        return Response(_team_member_payload(member))
+
+
 class AdminSiteSettingsAPIView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsALIBAdministrator]
     def put(self, request):
         obj = SiteSettings.objects.order_by('id').first()
         serializer = SiteSettingsSerializer(obj, data=request.data, partial=True) if obj else SiteSettingsSerializer(data=request.data)
@@ -464,7 +573,7 @@ class AnalyticsEventAPIView(APIView):
 
 
 class AdminAnalyticsAPIView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsALIBStaff]
     def get(self, request):
         since = timezone.now() - timezone.timedelta(days=30)
         events = AnalyticsEvent.objects.filter(created_at__gte=since)
@@ -474,7 +583,7 @@ class AdminAnalyticsAPIView(APIView):
 
 
 class ContactInboxAPIView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsALIBModerator]
     def get(self, request):
         queryset = ContactMessage.objects.order_by('reviewed', '-created_at')
         reviewed = request.query_params.get('reviewed')
@@ -502,7 +611,7 @@ class ContentCommentViewSet(viewsets.ModelViewSet):
         item_id = self.request.query_params.get('item_id')
         if item_id and item_id.isdigit():
             queryset = queryset.filter(item_id=int(item_id))
-        if self.request.user.is_authenticated and self.request.user.is_staff:
+        if can_moderate(self.request.user):
             return queryset
         return queryset.filter(status='approved', item__status='published', item__visibility='public', item__published_at__lte=timezone.now())
     def get_permissions(self):
@@ -514,7 +623,7 @@ class ContentCommentViewSet(viewsets.ModelViewSet):
         if not item or item.status != 'published' or item.visibility != 'public' or not item.published_at or item.published_at > timezone.now():
             raise ValidationError({'item_id': 'Comments are only open on published public items.'})
         serializer.save(status='pending')
-    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser], url_path='moderate')
+    @action(detail=True, methods=['post'], permission_classes=[IsALIBModerator], url_path='moderate')
     def moderate(self, request, pk=None):
         comment = self.get_object()
         new_status = request.data.get('status')
@@ -611,7 +720,7 @@ class MediaSignedUrlAPIView(APIView):
         asset = MediaAsset.objects.filter(pk=asset_id).first()
         if asset is None:
             return Response({'detail': 'File not found.'}, status=status.HTTP_404_NOT_FOUND)
-        is_admin = bool(request.user.is_authenticated and request.user.is_staff)
+        is_admin = can_manage_content(request.user)
         if not is_admin and asset.visibility != 'public':
             raise PermissionDenied('This file is not public.')
         download = request.query_params.get('download', '').lower() in ('1', 'true', 'yes')
