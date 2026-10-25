@@ -67,13 +67,30 @@ python manage.py check
 python manage.py test
 ```
 
-## Core behaviour and current limits
+## Implemented workflows
 
-Anonymous visitors only see public, published content. The Creator Studio can create/edit/publish content, search uses backend data, and visitor suggestions are held for moderation. Contact messages are saved privately, not reported as emailed. Scheduled status is modeled, but automatic publication needs a background scheduler/worker. Uploads need optional Supabase Storage variables; files are private by default and signed URLs are permission-checked.
+- Public content discovery supports server-side search, type/category/tag/featured/date filters, sort order, shareable URL state and pagination. Anonymous requests are restricted to published public entries.
+- Creator Studio includes a Markdown block editor with formatting toolbar/live preview, browser draft recovery, unsaved-change warning for the open editor, scheduled publication fields, revision comparison/restore, taxonomy selection, media upload progress and editable image alt text.
+- Collection curation persists item ordering. Homepage section order, public profile, site title/description, logo and favicon are editable through staff-only settings screens.
+- Reader tools include a local read-later list, share/copy actions, related content, privacy-hashed reactions, and comments that remain pending until moderation.
+- Administration includes least-privilege staff roles, email-based teammate invitations, password recovery, suggestion bulk moderation and duplicate-link checks, contact inbox, owner-only audit history, analytics summaries, and confirmed newsletter subscriber export.
+- Public SEO resources include canonical/Open Graph/Twitter metadata, RSS at `/feed.xml`, sitemap at `/sitemap.xml`, and robots directives at `/robots.txt`.
+- The backend includes an idempotent `publish_scheduled` management command and a protected trigger for scheduled workflows. CI checks the frontend, Django tests/privacy rules, packaging, collected assets and SPA/API smoke routes.
 
-Advanced YouTube/Instagram metadata ingestion, newsletter-provider integration, analytics reporting, a background scheduler, rich WYSIWYG editing, full profile/appearance settings UI, and browser end-to-end tests remain follow-on work. No fake analytics or invented personal profile details are seeded.
+## External setup required for production
 
-See the [20-feature completion roadmap](docs/feature-roadmap.md), [deployment instructions](docs/deployment.md), [architecture](docs/architecture.md), [security](docs/security.md), and [Supabase Storage setup](supabase/README.md).
+- **Supabase PostgreSQL:** set `DATABASE_URL` to the complete session-pooler connection URL. Never commit it.
+- **Supabase Storage:** uploads require a private `alib-media` bucket plus server-side `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and optionally `SUPABASE_STORAGE_BUCKET` / `MAX_UPLOAD_BYTES`.
+- **Email delivery:** team invitations, staff password reset, newsletter confirmation/unsubscribe emails, and optional contact notifications require working SMTP/provider settings. Without these credentials the application returns a clear delivery error; it does not claim an email was sent.
+- **Scheduled publishing:** configure `ALIB_SCHEDULER_TOKEN` in Render and matching GitHub Actions secrets `ALIB_SCHEDULER_URL` and `ALIB_SCHEDULER_TOKEN`. See [deployment instructions](docs/deployment.md). GitHub's scheduler is best-effort, not a real-time guarantee.
+- **Initial owner account:** use the temporary `ALIB_BOOTSTRAP_ADMIN_*` environment variables, then remove them after the account is created.
+- **Operations:** verify Supabase backups/restores and review the [production runbook](docs/production-runbook.md).
+
+## Remaining limitations and release gates
+
+The current editor is a Markdown-based block/formatting workflow, not a full visual WYSIWYG editor. Two-factor authentication, a native reader-account system with cross-device synced bookmarks, automatic analytics retention/deletion, automated provider-specific social metadata ingestion, and full browser end-to-end tests are not included yet. Newsletter/contact/team email features must be tested with the chosen provider before public launch. The feature roadmap is a delivery checklist, not a claim that every conceivable production control is complete.
+
+No fake analytics or invented personal profile details are seeded.
 
 ## UI/UX Pro Max
 
