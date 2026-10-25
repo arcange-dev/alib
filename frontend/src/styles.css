@@ -860,3 +860,26 @@ kbd { padding: 2px 5px; color: var(--muted); background: var(--surface-soft); bo
 .content-code-block { margin: 22px 0; padding: 17px 19px; overflow-x: auto; color: #e2e8f0; background: #172554; border: 1px solid #1e3a8a; border-radius: 10px; font-size: 12px; line-height: 1.75; tab-size: 2; }
 .content-code-block code { display: block; padding: 0; color: inherit; background: transparent; border: 0; white-space: pre; }
 .content-markdown hr { margin: 30px 0; border: 0; border-top: 1px solid var(--border-strong); }
+
+
+/* Accessible homepage-section ordering controls */
+.homepage-section-controls { display: flex; flex-direction: column; gap: 10px; padding: 16px; background: var(--surface-soft); border: 1px solid var(--border); border-radius: 9px; }
+.homepage-section-controls > div:first-child > p { margin: 5px 0 4px; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.homepage-section-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 7px; }
+.homepage-section-row > div:first-child { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.homepage-section-row strong { font-size: 12px; color: var(--text-strong); }
+.homepage-section-row small { color: var(--muted); font-size: 10px; }
+.homepage-section-actions, .homepage-section-additions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.homepage-section-actions .button-small { min-height: 30px; padding: 0 9px; }
+.homepage-hide-button { color: var(--danger); }
+.homepage-section-additions { padding-top: 8px; }
+.homepage-section-additions .section-kicker { width: 100%; }
+.homepage-sections-empty { margin: 0; padding: 12px; color: var(--muted); font-size: 11px; }
+.inbox-row-actions { display: flex; flex-shrink: 0; flex-wrap: wrap; gap: 7px; }
+.inbox-delete-button { color: var(--danger); }
+@media (max-width: 680px) {
+  .homepage-section-row { align-items: flex-start; flex-direction: column; }
+  .homepage-section-actions { width: 100%; }
+  .inbox-row { flex-direction: column; }
+  .inbox-row-actions { width: 100%; }
+}
