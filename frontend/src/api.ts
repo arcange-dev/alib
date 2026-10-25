@@ -60,6 +60,7 @@ export const api = {
   categories: () => request<PageResult<Category>>('/categories/'),
   tags: () => request<PageResult<Tag>>('/tags/'),
   collections: () => request<PageResult<Collection>>('/collections/'),
+  collectionDetail: (slug: string) => request<Collection>(`/collections/by-slug/${encodeURIComponent(slug)}/`),
   profile: () => request<CreatorProfile>('/profile/'),
   contact: (payload: { name: string; email: string; message: string }) => request<{ detail: string }>('/contact/', { method: 'POST', body: JSON.stringify(payload) }),
   suggest: (payload: { title: string; url: string; reason: string }) => request<{ detail: string }>('/suggestions/', { method: 'POST', body: JSON.stringify(payload) }),

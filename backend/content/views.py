@@ -11,7 +11,7 @@ from django.contrib.auth.tokens import default_token_generator
 from django.core import signing
 from django.core.mail import send_mail
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Max
+from django.db.models import Count, Max, OuterRef, Subquery
 from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -20,7 +20,7 @@ from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from urllib.parse import urlencode
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
-from rest_framework import status, viewsets
+from rest_framework import serializers, status, viewsets
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -29,7 +29,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle, ScopedRateThrottle
 from rest_framework.views import APIView
-from .models import AnalyticsEvent, AuditEvent, Category, Collection, ContactMessage, ContentComment, ContentItem, ContentRevision, ContentReaction, CreatorProfile, MediaAsset, NewsletterSubscriber, SiteSettings, StaffTwoFactor, Tag, VisitorSuggestion
+from .models import AnalyticsEvent, AuditEvent, Category, Collection, CollectionItem, ContactMessage, ContentComment, ContentItem, ContentRevision, ContentReaction, CreatorProfile, MediaAsset, NewsletterSubscriber, SiteSettings, StaffTwoFactor, Tag, VisitorSuggestion
 from .permissions import ADMIN_GROUP, EDITOR_GROUP, MODERATOR_GROUP, SUPPORT_GROUP, IsALIBAdministrator, IsALIBEditor, IsALIBModerator, IsALIBStaff, PublicReadAdminWrite, can_manage_content, can_moderate
 from .serializers import CategorySerializer, CollectionSerializer, ContentCommentSerializer, ContentItemSerializer, ContentRevisionSerializer, CreatorProfileSerializer, MediaAssetSerializer, SiteSettingsSerializer, TagSerializer, VisitorSuggestionSerializer
 from .storage import signed_object_url, upload_object
@@ -95,7 +95,11 @@ class ContentItemViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(status='published', visibility='public', published_at__lte=timezone.now())
         content_type = self.request.query_params.get('content_type') or self.request.query_params.get('type')
         if content_type:
-            queryset = queryset.filter(content_type=content_type)
+            content_types = [value.strip() for value in str(content_type).split(',') if value.strip()]
+            if len(content_types) == 1:
+                queryset = queryset.filter(content_type=content_types[0])
+            elif content_types:
+                queryset = queryset.filter(content_type__in=content_types)
         category = self.request.query_params.get('category')
         if category and category.isdigit():
             queryset = queryset.filter(category_id=int(category))
@@ -117,7 +121,26 @@ class ContentItemViewSet(viewsets.ModelViewSet):
             if parsed is None:
                 raise ValidationError({'to_date': 'Use YYYY-MM-DD.'})
             queryset = queryset.filter(published_at__date__lte=parsed)
+        collection_slug = str(self.request.query_params.get('collection', '')).strip()
+        if collection_slug:
+            queryset = queryset.filter(collections__slug=collection_slug)
+            if not can_manage_content(user):
+                queryset = queryset.filter(collections__visibility='public')
+            collection_order = CollectionItem.objects.filter(
+                item_id=OuterRef('pk'), collection__slug=collection_slug
+            )
+            if not can_manage_content(user):
+                collection_order = collection_order.filter(collection__visibility='public')
+            queryset = queryset.annotate(
+                collection_order=Subquery(collection_order.values('display_order')[:1])
+            )
         return queryset.distinct()
+
+    def filter_queryset(self, queryset):
+        queryset = super().filter_queryset(queryset)
+        if str(self.request.query_params.get('collection', '')).strip():
+            queryset = queryset.order_by('collection_order', '-published_at', '-created_at')
+        return queryset
 
     def perform_create(self, serializer):
         item = serializer.save(created_by=self.request.user)
@@ -201,6 +224,13 @@ class CollectionViewSet(viewsets.ModelViewSet):
         if not can_manage_content(self.request.user):
             queryset = queryset.filter(visibility='public')
         return queryset
+
+    @action(detail=False, methods=['get'], url_path=r'by-slug/(?P<slug>[^/.]+)', permission_classes=[AllowAny], authentication_classes=[])
+    def by_slug(self, request, slug=None):
+        collection = self.get_queryset().filter(slug=slug).first()
+        if collection is None:
+            return Response({'detail': 'Collection not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(self.get_serializer(collection).data)
 
 class HomeAPIView(APIView):
     permission_classes = [AllowAny]
@@ -328,6 +358,7 @@ class StaffTwoFactorAPIView(APIView):
         raise ValidationError({'action': 'Choose enable or disable.'})
 
 
+@method_decorator(csrf_protect, name='dispatch')
 class TwoFactorLoginVerifyAPIView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
@@ -693,8 +724,11 @@ class AdminTeamMemberAPIView(APIView):
                 raise ValidationError({'reset_two_factor': 'Use a recovery procedure to reset your own authenticator.'})
             StaffTwoFactor.objects.filter(user=member).delete()
             AuditEvent.objects.create(actor=request.user, action='auth.2fa_reset_by_owner', object_type='User', object_id=str(member.pk))
-        if member.pk == request.user.pk and request.data.get('is_active') is False:
-            raise ValidationError({'is_active': 'You cannot deactivate your own account.'})
+        next_active = None
+        if 'is_active' in request.data:
+            next_active = serializers.BooleanField().to_internal_value(request.data.get('is_active'))
+            if member.pk == request.user.pk and not next_active:
+                raise ValidationError({'is_active': 'You cannot deactivate your own account.'})
         if 'role' in request.data:
             role = str(request.data.get('role', '')).strip().lower()
             if role not in ROLE_GROUPS:
@@ -707,7 +741,6 @@ class AdminTeamMemberAPIView(APIView):
                 group, _ = Group.objects.get_or_create(name=ROLE_GROUPS[role])
                 member.groups.set([group])
         if 'is_active' in request.data:
-            next_active = bool(request.data.get('is_active'))
             if member.is_superuser and not next_active:
                 raise ValidationError({'is_active': 'Use a recovery procedure to disable the owner account.'})
             member.is_active = next_active
@@ -825,10 +858,10 @@ class ContactInboxAPIView(APIView):
             return Response({'detail': 'Message not found.'}, status=status.HTTP_404_NOT_FOUND)
         changed = []
         if 'reviewed' in request.data:
-            message.reviewed = bool(request.data['reviewed'])
+            message.reviewed = serializers.BooleanField().to_internal_value(request.data['reviewed'])
             changed.append('reviewed')
         if 'archived' in request.data:
-            message.archived = bool(request.data['archived'])
+            message.archived = serializers.BooleanField().to_internal_value(request.data['archived'])
             changed.append('archived')
         if changed:
             message.save(update_fields=changed)

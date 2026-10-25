@@ -6,7 +6,7 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from content.models import AuditEvent, ContactMessage, ContentItem, VisitorSuggestion
+from content.models import AuditEvent, Category, Collection, CollectionItem, ContactMessage, ContentItem, Tag, VisitorSuggestion
 from content.permissions import MODERATOR_GROUP
 from django.contrib.auth.models import Group
 
@@ -95,3 +95,69 @@ class CompletionOperationsTests(TestCase):
         export = self.client.get('/api/v1/admin/newsletter/?export=csv')
         self.assertEqual(export.status_code, 200)
         self.assertIn('text/csv', export['Content-Type'])
+
+    def test_category_tag_and_collection_generate_slugs_when_omitted(self):
+        self.client.force_authenticate(user=self._superuser())
+        category = self.client.post('/api/v1/categories/', {'name': 'Web Dev', 'description': 'Web development'}, format='json')
+        tag = self.client.post('/api/v1/tags/', {'name': 'Artificial Intelligence'}, format='json')
+        collection = self.client.post(
+            '/api/v1/collections/',
+            {'title': 'Learning resources', 'description': 'A curated learning path', 'visibility': 'public'},
+            format='json',
+        )
+        self.assertEqual(category.status_code, 201, category.data)
+        self.assertEqual(tag.status_code, 201, tag.data)
+        self.assertEqual(collection.status_code, 201, collection.data)
+        self.assertEqual(category.data['slug'], 'web-dev')
+        self.assertEqual(tag.data['slug'], 'artificial-intelligence')
+        self.assertEqual(collection.data['slug'], 'learning-resources')
+
+    def test_collection_filter_handles_multiple_types_and_preserves_curated_order(self):
+        now = timezone.now()
+        first = ContentItem.objects.create(title='First in collection', content_type='article', status='published', visibility='public', published_at=now - timedelta(days=30))
+        second = ContentItem.objects.create(title='Second in collection', content_type='project', status='published', visibility='public', published_at=now)
+        unrelated = ContentItem.objects.create(title='Not in collection', content_type='note', status='published', visibility='public')
+        collection = Collection.objects.create(title='Ordered collection', visibility='public')
+        CollectionItem.objects.create(collection=collection, item=first, display_order=0)
+        CollectionItem.objects.create(collection=collection, item=second, display_order=1)
+        response = APIClient().get('/api/v1/content/', {'page_size': 10, 'content_type': 'article,project', 'collection': collection.slug})
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data['count'], 2)
+        self.assertEqual([row['id'] for row in response.data['results']], [first.id, second.id])
+        self.assertNotIn(unrelated.id, [row['id'] for row in response.data['results']])
+
+    def test_collection_slug_lookup_does_not_expose_private_collections(self):
+        public = Collection.objects.create(title='Public collection', visibility='public')
+        private = Collection.objects.create(title='Private collection', visibility='private')
+        visitor = APIClient()
+        public_response = visitor.get(f'/api/v1/collections/by-slug/{public.slug}/')
+        private_response = visitor.get(f'/api/v1/collections/by-slug/{private.slug}/')
+        self.assertEqual(public_response.status_code, 200)
+        self.assertEqual(public_response.data['slug'], public.slug)
+        self.assertEqual(private_response.status_code, 404)
+
+    def test_boolean_string_values_parse_as_false_in_admin_updates(self):
+        self.client.force_authenticate(user=self._superuser())
+        message = ContactMessage.objects.create(name='Reader', email='reader@example.com', message='A test contact message.')
+        response = self.client.patch(f'/api/v1/admin/contact/{message.pk}/', {'reviewed': 'false', 'archived': 'false'}, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertFalse(response.data['reviewed'])
+        self.assertFalse(response.data['archived'])
+
+        staff = get_user_model().objects.create_user(username='temporary-editor', email='temporary-editor@example.com', password='ALIB-Temporary-Editor-Password-2026!', is_staff=True)
+        deactivated = self.client.patch(f'/api/v1/admin/team/{staff.pk}/', {'is_active': 'false'}, format='json')
+        self.assertEqual(deactivated.status_code, 200, deactivated.data)
+        self.assertFalse(deactivated.data['is_active'])
+        staff.refresh_from_db()
+        self.assertFalse(staff.is_active)
+
+    def test_two_factor_login_verification_requires_csrf(self):
+        client = APIClient(enforce_csrf_checks=True)
+        payload = {'challenge': 'not-a-valid-challenge', 'code': '000000'}
+        blocked = client.post('/api/v1/auth/2fa/verify-login/', payload, format='json')
+        self.assertEqual(blocked.status_code, 403)
+        csrf = client.get('/api/v1/auth/csrf/')
+        self.assertEqual(csrf.status_code, 200)
+        passed_csrf = client.post('/api/v1/auth/2fa/verify-login/', payload, format='json', HTTP_X_CSRFTOKEN=csrf.data['csrfToken'])
+        self.assertEqual(passed_csrf.status_code, 400)
+        self.assertIn('challenge', passed_csrf.data['detail'].lower())

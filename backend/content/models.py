@@ -107,7 +107,7 @@ class ContentItem(TimestampedModel):
     metadata = models.JSONField(default=dict, blank=True)
     class Meta:
         ordering = ['-published_at', '-created_at']
-        indexes = [models.Index(fields=['status', 'visibility', '-published_at']), models.Index(fields=['content_type', 'status'])]
+        indexes = [models.Index(fields=['status', 'visibility', '-published_at'], name='alib_pub_state_idx'), models.Index(fields=['content_type', 'status'], name='alib_type_state_idx')]
     def save(self, *args, **kwargs):
         if not self.slug:
             base = slugify(self.title)[:230] or f'item-{uuid4().hex[:8]}'

@@ -368,10 +368,42 @@ function FavoritesPage() {
 }
 
 function LibraryPage({ title, description, types }: { title: string; description: string; types: ContentType[] }) {
-  const [items, setItems] = useState<ContentItem[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState('');
-  useEffect(() => { api.content({ page_size: '100' }).then(data => setItems(data.results.filter(item => types.includes(item.content_type)))).catch(e => setError(e instanceof Error ? e.message : 'Unable to load content.')).finally(() => setLoading(false)); }, [types.join(',')]);
+  const [items, setItems] = useState<ContentItem[]>([]);
+  const [nextUrl, setNextUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState('');
+  const typeFilter = types.join(',');
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true); setError(''); setItems([]); setNextUrl(null);
+    api.content({ page_size: '24', content_type: typeFilter })
+      .then(data => {
+        if (cancelled) return;
+        setItems(data.results); setNextUrl(data.next);
+      })
+      .catch(err => { if (!cancelled) setError(err instanceof Error ? err.message : 'Unable to load content.'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [typeFilter]);
+
+  async function loadMore() {
+    if (!nextUrl || loadingMore) return;
+    setLoadingMore(true); setError('');
+    try {
+      const url = new URL(nextUrl, window.location.origin);
+      const page = await api.content(Object.fromEntries(url.searchParams.entries()));
+      setItems(current => [...current, ...page.results]); setNextUrl(page.next);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'More content could not load.');
+    } finally { setLoadingMore(false); }
+  }
+
   return <div className="page-wrap section-wrap page-enter"><div className="page-hero page-hero-small"><div className="eyebrow">THE ARCHIVE <span className="eyebrow-rule" /></div><h1>{title}<span className="title-period">.</span></h1><p>{description}</p></div>
-    {loading ? <LoadingRows /> : error ? <EmptyState title="The archive is not connected yet." body="Start the Django API and connect Supabase to load public items." /> : items.length ? <ContentGrid items={items} compact /> : <EmptyState title={`No ${title.toLowerCase()} published yet.`} body="When the creator publishes content in Creator Studio, it will show up here automatically." action={<Link className="button button-outline" to="/admin">Open Creator Studio <ArrowUpRight size={15} /></Link>} />}
+    {loading ? <LoadingRows /> : error && !items.length ? <EmptyState title={`${title} could not load.`} body={error} /> : items.length ? <ContentGrid items={items} compact /> : <EmptyState title={`No ${title.toLowerCase()} published yet.`} body="When the creator publishes content in Creator Studio, it will show up here automatically." action={<Link className="button button-outline" to="/admin">Open Creator Studio <ArrowUpRight size={15} /></Link>} />}
+    {error && items.length > 0 && <InlineNotice text={error} />}
+    {nextUrl && items.length > 0 && <div className="discover-load-more"><button className="button button-outline" onClick={() => void loadMore()} disabled={loadingMore}>{loadingMore ? 'Loading more…' : `Load more ${title.toLowerCase()}`} <ArrowDown size={15} /></button></div>}
   </div>;
 }
 
@@ -549,11 +581,46 @@ function CollectionsPage() {
 }
 
 function CollectionDetailPage() {
-  const { slug = '' } = useParams(); const [collection, setCollection] = useState<Collection | null>(null); const [items, setItems] = useState<ContentItem[]>([]); const [loading, setLoading] = useState(true);
-  useEffect(() => { Promise.all([api.collections(), api.content({ page_size: '100' })]).then(([cols, content]) => { const found = cols.results.find(c => c.slug === slug); setCollection(found || null); setItems(found ? content.results.filter(item => item.collection_slugs?.includes(found.slug)) : []); }).catch(() => setCollection(null)).finally(() => setLoading(false)); }, [slug]);
+  const { slug = '' } = useParams();
+  const [collection, setCollection] = useState<Collection | null>(null);
+  const [items, setItems] = useState<ContentItem[]>([]);
+  const [nextUrl, setNextUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true); setError(''); setCollection(null); setItems([]); setNextUrl(null);
+    Promise.all([
+      api.collectionDetail(slug),
+      api.content({ page_size: '24', collection: slug }),
+    ]).then(([found, content]) => {
+      if (cancelled) return;
+      setCollection(found); setItems(content.results); setNextUrl(content.next);
+    }).catch(err => {
+      if (cancelled) return;
+      setCollection(null);
+      setError(err instanceof Error ? err.message : 'This collection could not load.');
+    }).finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [slug]);
+
+  async function loadMore() {
+    if (!nextUrl || loadingMore) return;
+    setLoadingMore(true); setError('');
+    try {
+      const url = new URL(nextUrl, window.location.origin);
+      const page = await api.content(Object.fromEntries(url.searchParams.entries()));
+      setItems(current => [...current, ...page.results]); setNextUrl(page.next);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'More collection items could not load.');
+    } finally { setLoadingMore(false); }
+  }
+
   if (loading) return <div className="page-wrap section-wrap"><LoadingRows /></div>;
-  if (!collection) return <div className="page-wrap section-wrap"><EmptyState title="Collection not found." body="This collection may be private or not published." action={<Link to="/collections" className="button button-outline"><ArrowLeft size={15} /> All collections</Link>} /></div>;
-  return <div className="page-wrap section-wrap page-enter"><Link className="back-link" to="/collections"><ArrowLeft size={15} /> All collections</Link><div className="page-hero page-hero-small"><div className="eyebrow">CURATED COLLECTION <span className="eyebrow-rule" /></div><h1>{collection.title}<span className="title-period">.</span></h1><p>{collection.description}</p></div>{items.length ? <ContentGrid items={items} compact /> : <EmptyState title="This collection is ready to grow." body="Add items to this collection from Creator Studio. Only published public entries are shown here." />}</div>;
+  if (!collection) return <div className="page-wrap section-wrap"><EmptyState title="Collection not found." body={error || "This collection may be private or not published."} action={<Link to="/collections" className="button button-outline"><ArrowLeft size={15} /> All collections</Link>} /></div>;
+  return <div className="page-wrap section-wrap page-enter"><Link className="back-link" to="/collections"><ArrowLeft size={15} /> All collections</Link><div className="page-hero page-hero-small"><div className="eyebrow">CURATED COLLECTION <span className="eyebrow-rule" /></div><h1>{collection.title}<span className="title-period">.</span></h1><p>{collection.description}</p></div>{items.length ? <ContentGrid items={items} compact /> : <EmptyState title="This collection is ready to grow." body="Add items to this collection from Creator Studio. Only published public entries are shown here." />}{error && items.length > 0 && <InlineNotice text={error} />}{nextUrl && items.length > 0 && <div className="discover-load-more"><button className="button button-outline" onClick={() => void loadMore()} disabled={loadingMore}>{loadingMore ? 'Loading more…' : 'Load more collection items'} <ArrowDown size={15} /></button></div>}</div>;
 }
 
 function AboutPage() {
@@ -719,7 +786,7 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
       {isAdmin && <button title="Audit history" className={tab === 'audit' ? 'selected' : ''} onClick={() => setTab('audit')}><ClipboardList size={17} /> Audit history</button>}
       {isAdmin && <button title="Newsletter" className={tab === 'newsletter' ? 'selected' : ''} onClick={() => setTab('newsletter')}><AtSign size={17} /> Newsletter</button>}
       <Link to="/" title="View public site" className="admin-menu-link"><Globe2 size={17} /> View public site <ArrowUpRight size={14} /></Link>
-    </nav><div className="admin-sidebar-bottom"><div className="admin-avatar">{user.username.slice(0, 1).toUpperCase()}</div><div className="admin-user-meta"><strong>{user.username}</strong><span>Administrator</span></div><button className="icon-button" onClick={onSignOut} aria-label="Sign out"><LogOut size={17} /></button></div></aside>
+    </nav><div className="admin-sidebar-bottom"><div className="admin-avatar">{user.username.slice(0, 1).toUpperCase()}</div><div className="admin-user-meta"><strong>{user.username}</strong><span>{({ administrator: 'Administrator', editor: 'Editor', moderator: 'Moderator', support: 'Support' } as Record<TeamRole, string>)[role]}</span></div><button className="icon-button" onClick={onSignOut} aria-label="Sign out"><LogOut size={17} /></button></div></aside>
     <div className="admin-main"><header className="admin-topbar"><div><span className="section-kicker">ALIB / WORKSPACE</span><span className="admin-breadcrumb">{({ overview: 'Overview', security: 'Account security', content: 'All content', editor: editId ? 'Edit content' : 'New content', media: 'Media library', settings: 'Site settings', profile: 'Creator profile', collections: 'Collections', inbox: 'Contact inbox', analytics: 'Analytics', moderation: 'Suggestions', comments: 'Comments', team: 'Team access', audit: 'Audit history', newsletter: 'Newsletter' } as Record<string, string>)[tab]}</span></div><div className="admin-topbar-actions"><span className="admin-live-status"><span className="status-dot" /> Connected as {user.username}</span>{canManage && <button className="button button-primary button-small" onClick={newItem}><Plus size={15} /> Create content</button>}</div></header>
       <div className="admin-content-area">{message && <div className={message.toLowerCase().includes('could not') || message.toLowerCase().includes('unable') ? 'error-message' : 'success-message'} role="status">{message}<button onClick={() => setMessage('')} aria-label="Dismiss message"><X size={15} /></button></div>}
       {tab === 'overview' && <><div className="admin-welcome"><div><span className="section-kicker">YOUR DIGITAL HOME</span><h1>Good to see you, {user.username}.</h1><p>Here’s what’s happening in your archive.</p></div><button className="button button-outline" onClick={() => void reload()} disabled={busy}>{busy ? 'Refreshing…' : 'Refresh data'} <Clock3 size={15} /></button></div><div className="admin-stat-grid"><AdminStat icon={<FileText size={18} />} label="Published" value={stats?.published ?? '—'} hint="Visible to visitors" /><AdminStat icon={<PenLine size={18} />} label="Drafts" value={stats?.drafts ?? '—'} hint="Still in the studio" /><AdminStat icon={<Clock3 size={18} />} label="Scheduled" value={stats?.scheduled ?? '—'} hint="Waiting to publish" /><AdminStat icon={<FolderOpen size={18} />} label="Media assets" value={stats?.assets ?? '—'} hint="Stored asset records" /></div><div className="admin-overview-grid"><section className="admin-panel recent-content-panel"><div className="admin-panel-heading"><div><span className="section-kicker">THE ARCHIVE</span><h2>Recent content</h2></div><button className="text-link" onClick={() => setTab('content')}>View all <ArrowRight size={15} /></button></div>{items.slice(0, 5).length ? <div className="admin-recent-list">{items.slice(0, 5).map(item => <div key={item.id} className="admin-recent-row"><div className="admin-recent-icon"><FileText size={17} /></div><div className="admin-recent-meta"><strong>{item.title}</strong><span>{labelType(item.content_type)} · updated {formatDate(item.updated_at)}</span></div><StatusPill status={item.status} /><button className="icon-button" aria-label={`Edit ${item.title}`} onClick={() => editItem(item)}><ArrowUpRight size={16} /></button></div>)}</div> : <div className="admin-empty"><PenLine size={22} /><h3>Your content starts here.</h3><p>Create a draft or publish a first item. Publicly published items become discoverable automatically.</p><button className="button button-primary" onClick={newItem}><Plus size={15} /> Create first item</button></div>}</section><section className="admin-panel quick-actions-panel"><div className="admin-panel-heading"><div><span className="section-kicker">QUICK ACTIONS</span><h2>Keep things moving</h2></div><Command size={19} /></div><button className="quick-action" onClick={newItem}><span className="quick-action-icon"><Plus size={17} /></span><span><strong>Write something new</strong><small>Create an article, link, project, or resource.</small></span><ArrowRight size={16} /></button><button className="quick-action" onClick={() => { setTab('media'); void loadMedia(); }}><span className="quick-action-icon"><Upload size={17} /></span><span><strong>Add a media asset</strong><small>Manage covers and permitted downloads.</small></span><ArrowRight size={16} /></button><Link className="quick-action" to="/" target="_blank"><span className="quick-action-icon"><Globe2 size={17} /></span><span><strong>Preview the public site</strong><small>See the visitor experience.</small></span><ArrowUpRight size={16} /></Link><div className="security-note"><ShieldCheck size={16} /><span>Publishing is controlled by your account permissions. Drafts are not shown to anonymous visitors.</span></div></section></div></>}
