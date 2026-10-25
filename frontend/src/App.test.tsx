@@ -33,6 +33,7 @@ describe('Creator Studio navigation', () => {
       return { ok: true, status: 200, text: async () => JSON.stringify(payload) } as Response;
     }));
     render(<MemoryRouter initialEntries={['/admin']}><App /></MemoryRouter>);
+    await screen.findByRole('button', { name: 'Collapse sidebar' });
     const sidebar = document.querySelector('.admin-sidebar');
     const layout = document.querySelector('.admin-page.admin-layout');
     expect(sidebar).not.toBeNull();
@@ -40,7 +41,7 @@ describe('Creator Studio navigation', () => {
     expect(layout?.classList.contains('sidebar-full')).toBe(true);
 
     // full -> small (icon rail)
-    fireEvent.click(await screen.findByRole('button', { name: 'Collapse sidebar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Hide sidebar' })).toBeTruthy());
     expect(sidebar?.classList.contains('is-collapsed')).toBe(true);
     expect(window.localStorage.getItem('alib-studio-sidebar-mode')).toBe('small');
