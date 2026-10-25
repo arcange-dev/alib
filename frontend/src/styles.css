@@ -855,3 +855,8 @@ kbd { padding: 2px 5px; color: var(--muted); background: var(--surface-soft); bo
 .security-setup-step { display: flex; align-items: flex-start; gap: 12px; padding: 14px; background: var(--surface-soft); border: 1px solid var(--border); border-radius: 8px; }
 .security-setup-step > span { display: grid; place-items: center; width: 29px; height: 29px; flex-shrink: 0; color: var(--accent-ink); background: var(--accent); border-radius: 50%; font-size: 11px; font-weight: 700; }
 .security-setup-step > div { display: flex; flex-direction: column; gap: 5px; }
+
+
+.content-code-block { margin: 22px 0; padding: 17px 19px; overflow-x: auto; color: #e2e8f0; background: #172554; border: 1px solid #1e3a8a; border-radius: 10px; font-size: 12px; line-height: 1.75; tab-size: 2; }
+.content-code-block code { display: block; padding: 0; color: inherit; background: transparent; border: 0; white-space: pre; }
+.content-markdown hr { margin: 30px 0; border: 0; border-top: 1px solid var(--border-strong); }
