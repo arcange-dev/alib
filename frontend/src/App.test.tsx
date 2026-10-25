@@ -22,6 +22,7 @@ describe('Creator Studio navigation', () => {
       const url = String(input);
       let payload: unknown = {};
       if (url.includes('/auth/csrf/')) payload = { csrfToken: 'test-csrf-token' };
+      else if (url.includes('/auth/session/')) payload = { authenticated: true, user: { id: 1, username: 'studio-owner', email: 'owner@example.com', is_staff: true, is_superuser: true, role: 'administrator' } };
       else if (url.includes('/auth/me/')) payload = { id: 1, username: 'studio-owner', email: 'owner@example.com', is_staff: true, is_superuser: true, role: 'administrator' };
       else if (url.includes('/admin/stats/')) payload = { published: 0, drafts: 0, scheduled: 0, assets: 0, suggestions_pending: 0 };
       else if (url.includes('/content/')) payload = { count: 0, next: null, previous: null, results: [] };
