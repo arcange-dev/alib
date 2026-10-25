@@ -901,8 +901,10 @@ kbd { padding: 2px 5px; color: var(--muted); background: var(--surface-soft); bo
 .sidebar-restore:hover { color: var(--text-strong); background: var(--surface-soft); }
 @media (min-width: 901px) {
   .admin-sidebar.is-collapsed { width: 78px; padding: 26px 10px 18px; }
-  .admin-sidebar.is-collapsed .admin-sidebar-header { flex-direction: column; gap: 12px; }
+  .admin-sidebar.is-collapsed .admin-sidebar-header { flex-direction: column; justify-content: flex-start; align-items: center; gap: 12px; }
+  .admin-sidebar.is-collapsed .sidebar-toggle { order: -1; }
   .admin-sidebar.is-collapsed .admin-sidebar-header .brand { justify-content: center; padding: 0; }
+  .admin-sidebar.is-collapsed .brand-mark span,
   .admin-sidebar.is-collapsed .brand-word,
   .admin-sidebar.is-collapsed .studio-caption,
   .admin-sidebar.is-collapsed .admin-workspace-label,

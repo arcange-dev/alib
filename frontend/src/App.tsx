@@ -77,10 +77,13 @@ function App() {
     }).catch(() => {});
   }, [location.pathname]);
   useEffect(() => setMobileNav(false), []);
+  // The Creator Studio is a private workspace with its own chrome; the public
+  // site header and footer stay on visitor-facing routes only.
+  const isAdminRoute = location.pathname.startsWith('/admin');
   return <div className="app-shell">
     <a className="skip-link" href="#main-content">Skip to content</a>
-    <SiteHeader dark={dark} setDark={setDark} mobileNav={mobileNav} setMobileNav={setMobileNav} />
-    {mobileNav && <button type="button" className="mobile-nav-overlay" onClick={() => setMobileNav(false)} aria-label="Close navigation menu" />}
+    {!isAdminRoute && <SiteHeader dark={dark} setDark={setDark} mobileNav={mobileNav} setMobileNav={setMobileNav} />}
+    {!isAdminRoute && mobileNav && <button type="button" className="mobile-nav-overlay" onClick={() => setMobileNav(false)} aria-label="Close navigation menu" />}
     <main id="main-content" tabIndex={-1}>
       <Routes>
         <Route path="/" element={<HomePage />} />
@@ -103,7 +106,7 @@ function App() {
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </main>
-    <SiteFooter />
+    {!isAdminRoute && <SiteFooter />}
   </div>;
 }
 
