@@ -64,11 +64,18 @@ export const api = {
   csrf: async () => {
     const result = await request<{ csrfToken: string }>('/auth/csrf/'); csrfToken = result.csrfToken; return result;
   },
-  login: async (username: string, password: string) => {
+  login: async (username: string, password: string): Promise<StaffLoginResponse> => {
     await api.csrf();
-    const result = await request<{ detail: string; user: AdminUser }>('/auth/login/', { method: 'POST', body: JSON.stringify({ username, password }) });
+    return request<StaffLoginResponse>('/auth/login/', { method: 'POST', body: JSON.stringify({ username, password }) });
+  },
+  verifyTwoFactorLogin: async (challenge: string, code: string) => {
+    await api.csrf();
+    const result = await request<{ detail: string; user: AdminUser }>('/auth/2fa/verify-login/', { method: 'POST', body: JSON.stringify({ challenge, code }) });
     return result.user;
   },
+  twoFactorStatus: () => request<TwoFactorStatus>('/auth/2fa/'),
+  enableTwoFactor: (code: string) => request<{ detail: string; enabled: boolean }>('/auth/2fa/', { method: 'POST', body: JSON.stringify({ action: 'enable', code }) }),
+  disableTwoFactor: (code: string, password: string) => request<{ detail: string; enabled: boolean }>('/auth/2fa/', { method: 'POST', body: JSON.stringify({ action: 'disable', code, password }) }),
   logout: async () => { await api.csrf(); return request<{ detail: string }>('/auth/logout/', { method: 'POST', body: JSON.stringify({}) }); },
   me: async () => { await api.csrf(); return request<AdminUser>('/auth/me/'); },
   adminStats: () => request<AdminStats>('/admin/stats/'),
@@ -120,3 +127,6 @@ export interface AnalyticsSummary { period_days: number; page_views: number; out
 
 export interface AuditEventItem { id: number; actor: string; action: string; object_type: string; object_id: string; details: Record<string, unknown>; created_at: string; }
 export interface NewsletterSubscriberItem { id: number; email: string; is_active: boolean; confirmed_at: string | null; created_at: string; }
+
+export interface StaffLoginResponse { detail: string; user?: AdminUser; requires_two_factor?: boolean; challenge?: string; }
+export interface TwoFactorStatus { enabled: boolean; secret: string; otpauth_uri: string; }
