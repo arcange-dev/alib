@@ -840,6 +840,12 @@ class ContactInboxAPIView(APIView):
         message = ContactMessage.objects.filter(pk=message_id).first()
         if message is None:
             return Response({'detail': 'Message not found.'}, status=status.HTTP_404_NOT_FOUND)
+        AuditEvent.objects.create(
+            actor=request.user,
+            action='contact.deleted',
+            object_type='ContactMessage',
+            object_id=str(message.pk),
+        )
         message.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
