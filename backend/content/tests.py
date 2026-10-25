@@ -1,8 +1,14 @@
+import os
+from io import StringIO
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
+from django.core.management import call_command, CommandError
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework.test import APIClient
 from .models import ContentItem
+
 
 class PublicContentTests(TestCase):
     def setUp(self):
@@ -33,9 +39,55 @@ class PublicContentTests(TestCase):
         response = self.client.get('/api/v1/content/by-slug/private-draft/')
         self.assertEqual(response.status_code, 404)
 
+
 class SessionAuthenticationTests(TestCase):
-    def setUp(self): self.client = APIClient()
+    def setUp(self):
+        self.client = APIClient()
+
     def test_non_staff_user_cannot_login_to_creator_studio(self):
         user = get_user_model().objects.create_user(username='visitor', password='Sufficiently-long-pass-123!')
         response = self.client.post('/api/v1/auth/login/', {'username': 'visitor', 'password': 'Sufficiently-long-pass-123!'}, format='json')
         self.assertEqual(response.status_code, 400)
+
+
+class BootstrapAdminCommandTests(TestCase):
+    def _env(self, username="", email="", password=""):
+        return patch.dict(os.environ, {
+            "ALIB_BOOTSTRAP_ADMIN_USERNAME": username,
+            "ALIB_BOOTSTRAP_ADMIN_EMAIL": email,
+            "ALIB_BOOTSTRAP_ADMIN_PASSWORD": password,
+        })
+
+    def test_bootstrap_is_a_noop_when_not_configured(self):
+        output = StringIO()
+        with self._env():
+            call_command("bootstrap_admin", stdout=output)
+        self.assertIn("not configured", output.getvalue())
+        self.assertEqual(get_user_model().objects.filter(is_superuser=True).count(), 0)
+
+    def test_bootstrap_creates_first_superuser(self):
+        username = "alib-owner"
+        email = "owner@example.com"
+        password = "ALIB-First-Owner-Strong-Password-2026!"
+        output = StringIO()
+        with self._env(username, email, password):
+            call_command("bootstrap_admin", stdout=output)
+        user = get_user_model().objects.get(username=username)
+        self.assertTrue(user.is_superuser)
+        self.assertTrue(user.is_staff)
+        self.assertTrue(user.check_password(password))
+        self.assertNotIn(password, output.getvalue())
+
+    def test_existing_superuser_prevents_creating_another(self):
+        User = get_user_model()
+        User.objects.create_superuser(username="already-owner", email="owner@example.com", password="ALIB-Existing-Owner-Password-2026!")
+        output = StringIO()
+        with self._env("second-owner", "second@example.com", "ALIB-Second-Owner-Password-2026!"):
+            call_command("bootstrap_admin", stdout=output)
+        self.assertEqual(User.objects.filter(is_superuser=True).count(), 1)
+        self.assertIn("already exists", output.getvalue())
+
+    def test_partial_bootstrap_environment_fails_safely(self):
+        with self._env(username="owner"):
+            with self.assertRaises(CommandError):
+                call_command("bootstrap_admin")

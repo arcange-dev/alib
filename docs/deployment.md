@@ -59,17 +59,21 @@ Do not set `VITE_API_URL` for the single-service deployment; requests use `/api/
 
 After the service has successfully deployed:
 
-1. Open the service in Render.
-2. Open **Shell** if it is available on your selected plan.
-3. Run:
-   ```bash
-   cd backend
-   python manage.py createsuperuser
-   ```
-4. Enter a username, email, and a strong password.
-5. Open the Render URL followed by `/admin` and sign in.
+Render Free web services do not have Shell access, so ALIB supports a temporary, guarded bootstrap flow that does not expose a public account-creation endpoint.
 
-The React Creator Studio is at `/admin`; Django's built-in maintenance interface is at `/django-admin/`.
+1. In Render → your `alib` service → **Environment**, add all three variables below. Use your own values; do not send the password in chat or commit it to GitHub.
+
+   | Key | Value |
+   | --- | --- |
+   | `ALIB_BOOTSTRAP_ADMIN_USERNAME` | A username you choose, e.g. `alib-owner` |
+   | `ALIB_BOOTSTRAP_ADMIN_EMAIL` | Your email address |
+   | `ALIB_BOOTSTRAP_ADMIN_PASSWORD` | A unique strong password (at least 12 characters, preferably longer) |
+
+2. Save the environment changes and let Render redeploy. The startup command runs migrations then `python manage.py bootstrap_admin`. It creates the first active superuser only if none exists and never resets an existing administrator password.
+3. After the deploy starts successfully and logs say the first superuser was created, return to **Environment** and delete all three `ALIB_BOOTSTRAP_ADMIN_*` variables. Save changes and redeploy again. The administrator account stays in Supabase PostgreSQL; removing the temporary variables does not delete it.
+4. Open the Render URL followed by `/admin` and sign in with the username and password you chose.
+
+If you use a paid Render service with Shell access instead, you can use `cd backend && python manage.py createsuperuser`. The React Creator Studio is at `/admin`; Django's built-in maintenance interface is at `/django-admin/`.
 
 ## 4. Verify the live deployment
 

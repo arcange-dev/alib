@@ -18,7 +18,7 @@ Follow [the step-by-step deployment guide](docs/deployment.md). In summary:
 2. Open Render → **New + → Blueprint** and select GitHub repo `arcange-dev/alib`, branch `main`.
 3. Enter the private connection string when Render prompts for `DATABASE_URL`. Render generates `DJANGO_SECRET_KEY`.
 4. Apply the Blueprint and wait for the deployment to succeed.
-5. Open Render Shell and run `cd backend && python manage.py createsuperuser`.
+5. Create the first superuser using the temporary `ALIB_BOOTSTRAP_ADMIN_USERNAME`, `ALIB_BOOTSTRAP_ADMIN_EMAIL`, and `ALIB_BOOTSTRAP_ADMIN_PASSWORD` Render environment variables described in [the deployment guide](docs/deployment.md), then remove them after the first successful bootstrap deploy.
 6. Open the assigned Render URL, then `/admin`, to sign in.
 
 Render serves the website and API from the same host, so the client uses relative `/api/v1` requests and Django's session/CSRF cookies remain same-origin. Leave `VITE_API_URL` blank for this deployment.
