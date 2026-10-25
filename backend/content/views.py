@@ -286,6 +286,19 @@ class VisitorSuggestionViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(status='pending')
 
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser], url_path='review')
+    def review(self, request, pk=None):
+        suggestion = self.get_object()
+        decision = request.data.get('status')
+        if decision not in {'approved', 'rejected', 'pending'}:
+            raise ValidationError({'status': 'Choose pending, approved, or rejected.'})
+        suggestion.status = decision
+        suggestion.reviewed_by = request.user
+        suggestion.save(update_fields=['status', 'reviewed_by', 'updated_at'])
+        AuditEvent.objects.create(actor=request.user, action='suggestion.reviewed', object_type='VisitorSuggestion', object_id=str(suggestion.pk), details={'status': decision})
+        return Response(VisitorSuggestionSerializer(suggestion).data)
+
+
 class AdminMediaViewSet(viewsets.ModelViewSet):
     serializer_class = MediaAssetSerializer
     permission_classes = [IsAdminUser]
