@@ -8,9 +8,10 @@ from django.conf import settings
 from django.contrib.auth import authenticate, login, logout, get_user_model
 from django.contrib.auth.models import Group
 from django.contrib.auth.tokens import default_token_generator
+from django.core import signing
 from django.core.mail import send_mail
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Max
+from django.db.models import Count, Max, OuterRef, Subquery
 from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -19,7 +20,7 @@ from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from urllib.parse import urlencode
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
-from rest_framework import status, viewsets
+from rest_framework import serializers, status, viewsets
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -28,11 +29,37 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle, ScopedRateThrottle
 from rest_framework.views import APIView
-from .models import AnalyticsEvent, AuditEvent, Category, Collection, ContactMessage, ContentComment, ContentItem, ContentRevision, ContentReaction, CreatorProfile, MediaAsset, NewsletterSubscriber, SiteSettings, Tag, VisitorSuggestion
+from .models import AnalyticsEvent, AuditEvent, Category, Collection, CollectionItem, ContactMessage, ContentComment, ContentItem, ContentRevision, ContentReaction, CreatorProfile, MediaAsset, NewsletterSubscriber, SiteSettings, StaffTwoFactor, Tag, VisitorSuggestion
 from .permissions import ADMIN_GROUP, EDITOR_GROUP, MODERATOR_GROUP, SUPPORT_GROUP, IsALIBAdministrator, IsALIBEditor, IsALIBModerator, IsALIBStaff, PublicReadAdminWrite, can_manage_content, can_moderate
 from .serializers import CategorySerializer, CollectionSerializer, ContentCommentSerializer, ContentItemSerializer, ContentRevisionSerializer, CreatorProfileSerializer, MediaAssetSerializer, SiteSettingsSerializer, TagSerializer, VisitorSuggestionSerializer
 from .storage import signed_object_url, upload_object
+from .two_factor import decrypt_secret, encrypt_secret, generate_secret, provisioning_uri, verify_code
 
+
+
+
+
+def _file_signature_matches(mime_type, header):
+    """Reject files whose bytes do not match their declared allow-listed MIME type."""
+    if mime_type == 'image/jpeg':
+        return header.startswith(b'\xff\xd8\xff')
+    if mime_type == 'image/png':
+        return header.startswith(b'\x89PNG\r\n\x1a\n')
+    if mime_type == 'image/webp':
+        return header.startswith(b'RIFF') and header[8:12] == b'WEBP'
+    if mime_type == 'image/gif':
+        return header.startswith((b'GIF87a', b'GIF89a'))
+    if mime_type == 'application/pdf':
+        return header.startswith(b'%PDF-')
+    if mime_type == 'audio/mpeg':
+        return header.startswith(b'ID3') or (
+            len(header) >= 2 and header[0] == 0xff and (header[1] & 0xe0) == 0xe0
+        )
+    if mime_type in {'audio/mp4', 'video/mp4'}:
+        return len(header) >= 12 and header[4:8] == b'ftyp'
+    if mime_type == 'video/webm':
+        return header.startswith(b'\x1a\x45\xdf\xa3')
+    return False
 
 
 def _revision_snapshot(item):
@@ -68,7 +95,11 @@ class ContentItemViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(status='published', visibility='public', published_at__lte=timezone.now())
         content_type = self.request.query_params.get('content_type') or self.request.query_params.get('type')
         if content_type:
-            queryset = queryset.filter(content_type=content_type)
+            content_types = [value.strip() for value in str(content_type).split(',') if value.strip()]
+            if len(content_types) == 1:
+                queryset = queryset.filter(content_type=content_types[0])
+            elif content_types:
+                queryset = queryset.filter(content_type__in=content_types)
         category = self.request.query_params.get('category')
         if category and category.isdigit():
             queryset = queryset.filter(category_id=int(category))
@@ -90,7 +121,26 @@ class ContentItemViewSet(viewsets.ModelViewSet):
             if parsed is None:
                 raise ValidationError({'to_date': 'Use YYYY-MM-DD.'})
             queryset = queryset.filter(published_at__date__lte=parsed)
+        collection_slug = str(self.request.query_params.get('collection', '')).strip()
+        if collection_slug:
+            queryset = queryset.filter(collections__slug=collection_slug)
+            if not can_manage_content(user):
+                queryset = queryset.filter(collections__visibility='public')
+            collection_order = CollectionItem.objects.filter(
+                item_id=OuterRef('pk'), collection__slug=collection_slug
+            )
+            if not can_manage_content(user):
+                collection_order = collection_order.filter(collection__visibility='public')
+            queryset = queryset.annotate(
+                collection_order=Subquery(collection_order.values('display_order')[:1])
+            )
         return queryset.distinct()
+
+    def filter_queryset(self, queryset):
+        queryset = super().filter_queryset(queryset)
+        if str(self.request.query_params.get('collection', '')).strip():
+            queryset = queryset.order_by('collection_order', '-published_at', '-created_at')
+        return queryset
 
     def perform_create(self, serializer):
         item = serializer.save(created_by=self.request.user)
@@ -175,6 +225,13 @@ class CollectionViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(visibility='public')
         return queryset
 
+    @action(detail=False, methods=['get'], url_path=r'by-slug/(?P<slug>[^/.]+)', permission_classes=[AllowAny], authentication_classes=[])
+    def by_slug(self, request, slug=None):
+        collection = self.get_queryset().filter(slug=slug).first()
+        if collection is None:
+            return Response({'detail': 'Collection not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(self.get_serializer(collection).data)
+
 class HomeAPIView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
@@ -243,8 +300,94 @@ class LoginAPIView(APIView):
         user = authenticate(request, username=username, password=password)
         if user is None or not user.is_active or not user.is_staff:
             return Response({'detail': 'The sign-in details were not accepted.'}, status=status.HTTP_400_BAD_REQUEST)
+        state = StaffTwoFactor.objects.filter(user=user, enabled=True).first()
+        if state:
+            challenge = signing.dumps({'user_id': user.pk, 'purpose': 'staff-login'}, salt='alib-staff-2fa-login')
+            return Response({'detail': 'Password accepted. Enter your authenticator code.', 'requires_two_factor': True, 'challenge': challenge})
         login(request, user)
         return Response({'detail': 'Signed in.', 'user': {'id': user.pk, 'username': user.get_username(), 'email': user.email, 'is_staff': user.is_staff, 'is_superuser': user.is_superuser, 'role': _team_member_payload(user)['role']}})
+
+
+class StaffTwoFactorAPIView(APIView):
+    permission_classes = [IsALIBStaff]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'two_factor'
+
+    def get(self, request):
+        state, _ = StaffTwoFactor.objects.get_or_create(user=request.user)
+        if state.enabled:
+            return Response({'enabled': True, 'secret': '', 'otpauth_uri': ''})
+        if not state.secret_encrypted:
+            state.secret_encrypted = encrypt_secret(generate_secret())
+            state.save(update_fields=['secret_encrypted', 'updated_at'])
+        secret = decrypt_secret(state.secret_encrypted)
+        return Response({'enabled': False, 'secret': secret, 'otpauth_uri': provisioning_uri(secret, request.user.get_username())})
+
+    def post(self, request):
+        action_name = str(request.data.get('action', 'enable')).strip().lower()
+        state = StaffTwoFactor.objects.filter(user=request.user).first()
+        if action_name == 'enable':
+            if state is None or not state.secret_encrypted:
+                raise ValidationError({'detail': 'Open this page to generate a setup secret before enabling two-factor authentication.'})
+            if state.enabled:
+                return Response({'detail': 'Two-factor authentication is already enabled.', 'enabled': True})
+            step = verify_code(decrypt_secret(state.secret_encrypted), request.data.get('code'))
+            if step is None:
+                return Response({'detail': 'The authenticator code was not accepted. Check your device clock and try again.'}, status=status.HTTP_400_BAD_REQUEST)
+            state.enabled = True
+            state.last_verified_step = step
+            state.save(update_fields=['enabled', 'last_verified_step', 'updated_at'])
+            AuditEvent.objects.create(actor=request.user, action='auth.2fa_enabled', object_type='User', object_id=str(request.user.pk))
+            return Response({'detail': 'Two-factor authentication is enabled for future sign-ins.', 'enabled': True})
+        if action_name == 'disable':
+            if not request.user.check_password(request.data.get('password', '')):
+                return Response({'detail': 'The current password was not accepted.'}, status=status.HTTP_400_BAD_REQUEST)
+            if state is None or not state.enabled or not state.secret_encrypted:
+                return Response({'detail': 'Two-factor authentication is not enabled.'}, status=status.HTTP_400_BAD_REQUEST)
+            with transaction.atomic():
+                state = StaffTwoFactor.objects.select_for_update().get(pk=state.pk)
+                step = verify_code(decrypt_secret(state.secret_encrypted), request.data.get('code'))
+                if step is None or step <= state.last_verified_step:
+                    return Response({'detail': 'The authenticator code was not accepted or has already been used.'}, status=status.HTTP_400_BAD_REQUEST)
+                state.enabled = False
+                state.secret_encrypted = ''
+                state.last_verified_step = -1
+                state.save(update_fields=['enabled', 'secret_encrypted', 'last_verified_step', 'updated_at'])
+            AuditEvent.objects.create(actor=request.user, action='auth.2fa_disabled', object_type='User', object_id=str(request.user.pk))
+            return Response({'detail': 'Two-factor authentication is disabled.', 'enabled': False})
+        raise ValidationError({'action': 'Choose enable or disable.'})
+
+
+@method_decorator(csrf_protect, name='dispatch')
+class TwoFactorLoginVerifyAPIView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = [AnonRateThrottle, ScopedRateThrottle]
+    throttle_scope = 'two_factor'
+
+    def post(self, request):
+        challenge = str(request.data.get('challenge', '')).strip()
+        code = str(request.data.get('code', '')).strip()
+        try:
+            payload = signing.loads(challenge, salt='alib-staff-2fa-login', max_age=300)
+            if payload.get('purpose') != 'staff-login':
+                raise signing.BadSignature('Wrong token purpose.')
+            user = get_user_model().objects.get(pk=payload.get('user_id'), is_active=True, is_staff=True)
+        except (signing.BadSignature, signing.SignatureExpired, get_user_model().DoesNotExist, TypeError, ValueError):
+            return Response({'detail': 'This sign-in challenge has expired. Enter your password again.'}, status=status.HTTP_400_BAD_REQUEST)
+        with transaction.atomic():
+            state = StaffTwoFactor.objects.select_for_update().filter(user=user, enabled=True).first()
+            if state is None or not state.secret_encrypted:
+                return Response({'detail': 'Two-factor authentication is not configured. Sign in again.'}, status=status.HTTP_400_BAD_REQUEST)
+            step = verify_code(decrypt_secret(state.secret_encrypted), code)
+            if step is None or step <= state.last_verified_step:
+                return Response({'detail': 'The authenticator code was not accepted or has already been used.'}, status=status.HTTP_400_BAD_REQUEST)
+            state.last_verified_step = step
+            state.save(update_fields=['last_verified_step', 'updated_at'])
+        login(request, user)
+        AuditEvent.objects.create(actor=user, action='auth.2fa_login', object_type='User', object_id=str(user.pk))
+        return Response({'detail': 'Signed in.', 'user': {'id': user.pk, 'username': user.get_username(), 'email': user.email, 'is_staff': user.is_staff, 'is_superuser': user.is_superuser, 'role': _team_member_payload(user)['role']}})
+
 
 class LogoutAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -376,6 +519,10 @@ class MediaUploadAPIView(APIView):
         mime_type = (getattr(uploaded, 'content_type', '') or '').lower()
         if mime_type not in allowed:
             raise ValidationError({'file': 'Allowed formats are JPG, PNG, WebP, GIF, PDF, MP3, MP4, and WebM.'})
+        header = uploaded.read(32)
+        uploaded.seek(0)
+        if not _file_signature_matches(mime_type, header):
+            raise ValidationError({'file': 'The uploaded file bytes do not match the selected file type. Choose a valid file in an allowed format.'})
         safe_name = re.sub(r'[^a-zA-Z0-9._-]+', '-', PurePath(uploaded.name).name).strip('.-')[:120] or 'upload.bin'
         object_key = f'{uuid4().hex}/{safe_name}'
         upload_object(object_key, mime_type, uploaded.read())
@@ -570,8 +717,18 @@ class AdminTeamMemberAPIView(APIView):
             return Response({'detail': 'Staff member not found.'}, status=status.HTTP_404_NOT_FOUND)
         if member.is_superuser and not request.user.is_superuser:
             raise PermissionDenied('Only the owner superuser can change the owner account.')
-        if member.pk == request.user.pk and request.data.get('is_active') is False:
-            raise ValidationError({'is_active': 'You cannot deactivate your own account.'})
+        if request.data.get('reset_two_factor') is True:
+            if not request.user.is_superuser:
+                raise PermissionDenied('Only the owner superuser can reset another staff member’s authenticator.')
+            if member.pk == request.user.pk:
+                raise ValidationError({'reset_two_factor': 'Use a recovery procedure to reset your own authenticator.'})
+            StaffTwoFactor.objects.filter(user=member).delete()
+            AuditEvent.objects.create(actor=request.user, action='auth.2fa_reset_by_owner', object_type='User', object_id=str(member.pk))
+        next_active = None
+        if 'is_active' in request.data:
+            next_active = serializers.BooleanField().to_internal_value(request.data.get('is_active'))
+            if member.pk == request.user.pk and not next_active:
+                raise ValidationError({'is_active': 'You cannot deactivate your own account.'})
         if 'role' in request.data:
             role = str(request.data.get('role', '')).strip().lower()
             if role not in ROLE_GROUPS:
@@ -584,7 +741,6 @@ class AdminTeamMemberAPIView(APIView):
                 group, _ = Group.objects.get_or_create(name=ROLE_GROUPS[role])
                 member.groups.set([group])
         if 'is_active' in request.data:
-            next_active = bool(request.data.get('is_active'))
             if member.is_superuser and not next_active:
                 raise ValidationError({'is_active': 'Use a recovery procedure to disable the owner account.'})
             member.is_active = next_active
@@ -655,7 +811,7 @@ class AdminNewsletterAPIView(APIView):
         active = request.query_params.get('active')
         if active in {'true', 'false'}:
             queryset = queryset.filter(is_active=(active == 'true'))
-        if request.query_params.get('export') == 'csv':
+        if request.query_params.get('export') == 'csv' or request.query_params.get('format') == 'csv':
             response = HttpResponse(content_type='text/csv; charset=utf-8')
             response['Content-Disposition'] = 'attachment; filename=alib-newsletter-subscribers.csv'
             writer = csv.writer(response)
@@ -680,21 +836,51 @@ class AdminAnalyticsAPIView(APIView):
 
 class ContactInboxAPIView(APIView):
     permission_classes = [IsALIBModerator]
+
     def get(self, request):
-        queryset = ContactMessage.objects.order_by('reviewed', '-created_at')
+        queryset = ContactMessage.objects.order_by('archived', 'reviewed', '-created_at')
+        archived = request.query_params.get('archived', 'false')
+        if archived in ('true', 'false'):
+            queryset = queryset.filter(archived=(archived == 'true'))
         reviewed = request.query_params.get('reviewed')
         if reviewed in ('true', 'false'):
             queryset = queryset.filter(reviewed=(reviewed == 'true'))
-        return Response([{'id': x.pk, 'name': x.name, 'email': x.email, 'message': x.message, 'reviewed': x.reviewed, 'created_at': x.created_at} for x in queryset[:200]])
+        return Response([
+            {'id': x.pk, 'name': x.name, 'email': x.email, 'message': x.message,
+             'reviewed': x.reviewed, 'archived': x.archived, 'created_at': x.created_at}
+            for x in queryset[:200]
+        ])
+
     def patch(self, request, message_id=None):
         message_id = message_id or request.data.get('id')
         message = ContactMessage.objects.filter(pk=message_id).first()
         if message is None:
             return Response({'detail': 'Message not found.'}, status=status.HTTP_404_NOT_FOUND)
+        changed = []
         if 'reviewed' in request.data:
-            message.reviewed = bool(request.data['reviewed'])
-            message.save(update_fields=['reviewed'])
-        return Response({'id': message.pk, 'reviewed': message.reviewed})
+            message.reviewed = serializers.BooleanField().to_internal_value(request.data['reviewed'])
+            changed.append('reviewed')
+        if 'archived' in request.data:
+            message.archived = serializers.BooleanField().to_internal_value(request.data['archived'])
+            changed.append('archived')
+        if changed:
+            message.save(update_fields=changed)
+        return Response({'id': message.pk, 'reviewed': message.reviewed, 'archived': message.archived})
+
+    def delete(self, request, message_id=None):
+        if not message_id:
+            raise ValidationError({'id': 'Specify the contact message to delete.'})
+        message = ContactMessage.objects.filter(pk=message_id).first()
+        if message is None:
+            return Response({'detail': 'Message not found.'}, status=status.HTTP_404_NOT_FOUND)
+        AuditEvent.objects.create(
+            actor=request.user,
+            action='contact.deleted',
+            object_type='ContactMessage',
+            object_id=str(message.pk),
+        )
+        message.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class ContentCommentViewSet(viewsets.ModelViewSet):

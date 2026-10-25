@@ -32,16 +32,18 @@ export const api = {
   adminAnalytics: () => request<AnalyticsSummary>('/admin/analytics/'),
   auditEvents: (params: Record<string, string> = {}) => request<AuditEventItem[]>(`/admin/audit/${new URLSearchParams(params).size ? `?${new URLSearchParams(params)}` : ''}`),
   newsletterSubscribers: (active = 'all') => request<NewsletterSubscriberItem[]>(`/admin/newsletter/${active === 'all' ? '' : `?active=${active}`}`),
-  contactInbox: () => request<ContactInboxItem[]>('/admin/contact/'),
+  contactInbox: (archived = false) => request<ContactInboxItem[]>(`/admin/contact/?archived=${archived ? 'true' : 'false'}`),
   saveProfile: (payload: Partial<CreatorProfile>) => request<CreatorProfile>('/admin/profile/', { method: 'PUT', body: JSON.stringify(payload) }),
   team: () => request<TeamMember[]>('/admin/team/'),
   inviteTeamMember: (payload: { username: string; email: string; role: TeamRole }) => request<{ detail: string; member: TeamMember }>('/admin/team/', { method: 'POST', body: JSON.stringify(payload) }),
-  updateTeamMember: (id: number, payload: { role?: TeamRole; is_active?: boolean }) => request<TeamMember>(`/admin/team/${id}/`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  updateTeamMember: (id: number, payload: { role?: TeamRole; is_active?: boolean; reset_two_factor?: boolean }) => request<TeamMember>(`/admin/team/${id}/`, { method: 'PATCH', body: JSON.stringify(payload) }),
   saveCollection: (payload: Partial<Collection> & { item_ids?: number[] }, id?: number) => request<Collection>(id ? `/collections/${id}/` : '/collections/', { method: id ? 'PATCH' : 'POST', body: JSON.stringify(payload) }),
   adminSuggestions: () => request<PageResult<{ id: number; title: string; url: string; reason: string; status: string; created_at: string }>>('/suggestions/?page_size=100'),
   reviewSuggestion: (id: number, status: 'pending' | 'approved' | 'rejected') => request<{ id: number; status: string }>(`/suggestions/${id}/review/`, { method: 'POST', body: JSON.stringify({ status }) }),
   bulkReviewSuggestions: (ids: number[], status: 'pending' | 'approved' | 'rejected') => request<{ updated: number; status: string }>('/suggestions/bulk-review/', { method: 'POST', body: JSON.stringify({ ids, status }) }),
   reviewContact: (id: number, reviewed: boolean) => request<{ id: number; reviewed: boolean }>('/admin/contact/', { method: 'PATCH', body: JSON.stringify({ id, reviewed }) }),
+  archiveContact: (id: number, archived: boolean) => request<{ id: number; reviewed: boolean; archived: boolean }>(`/admin/contact/${id}/`, { method: 'PATCH', body: JSON.stringify({ archived }) }),
+  deleteContact: (id: number) => request<void>(`/admin/contact/${id}/`, { method: 'DELETE' }),
   comments: (item_id?: number) => request<PageResult<ContentComment>>(`/comments/${item_id ? `?item_id=${item_id}` : ''}`),
   submitComment: (payload: { item_id: number; name: string; email: string; body: string }) => request<ContentComment>('/comments/', { method: 'POST', body: JSON.stringify(payload) }),
   moderateComment: (id: number, status: 'pending' | 'approved' | 'rejected') => request<ContentComment>(`/comments/${id}/moderate/`, { method: 'POST', body: JSON.stringify({ status }) }),
@@ -58,17 +60,25 @@ export const api = {
   categories: () => request<PageResult<Category>>('/categories/'),
   tags: () => request<PageResult<Tag>>('/tags/'),
   collections: () => request<PageResult<Collection>>('/collections/'),
+  collectionDetail: (slug: string) => request<Collection>(`/collections/by-slug/${encodeURIComponent(slug)}/`),
   profile: () => request<CreatorProfile>('/profile/'),
   contact: (payload: { name: string; email: string; message: string }) => request<{ detail: string }>('/contact/', { method: 'POST', body: JSON.stringify(payload) }),
   suggest: (payload: { title: string; url: string; reason: string }) => request<{ detail: string }>('/suggestions/', { method: 'POST', body: JSON.stringify(payload) }),
   csrf: async () => {
     const result = await request<{ csrfToken: string }>('/auth/csrf/'); csrfToken = result.csrfToken; return result;
   },
-  login: async (username: string, password: string) => {
+  login: async (username: string, password: string): Promise<StaffLoginResponse> => {
     await api.csrf();
-    const result = await request<{ detail: string; user: AdminUser }>('/auth/login/', { method: 'POST', body: JSON.stringify({ username, password }) });
+    return request<StaffLoginResponse>('/auth/login/', { method: 'POST', body: JSON.stringify({ username, password }) });
+  },
+  verifyTwoFactorLogin: async (challenge: string, code: string) => {
+    await api.csrf();
+    const result = await request<{ detail: string; user: AdminUser }>('/auth/2fa/verify-login/', { method: 'POST', body: JSON.stringify({ challenge, code }) });
     return result.user;
   },
+  twoFactorStatus: () => request<TwoFactorStatus>('/auth/2fa/'),
+  enableTwoFactor: (code: string) => request<{ detail: string; enabled: boolean }>('/auth/2fa/', { method: 'POST', body: JSON.stringify({ action: 'enable', code }) }),
+  disableTwoFactor: (code: string, password: string) => request<{ detail: string; enabled: boolean }>('/auth/2fa/', { method: 'POST', body: JSON.stringify({ action: 'disable', code, password }) }),
   logout: async () => { await api.csrf(); return request<{ detail: string }>('/auth/logout/', { method: 'POST', body: JSON.stringify({}) }); },
   me: async () => { await api.csrf(); return request<AdminUser>('/auth/me/'); },
   adminStats: () => request<AdminStats>('/admin/stats/'),
@@ -115,8 +125,11 @@ export interface AdminStats { published: number; drafts: number; scheduled: numb
 export interface SiteSettings { site_title: string; logo_url: string; favicon_url: string; seo_description: string; homepage_sections: string[]; theme_preferences: Record<string, string>; updated_at?: string; }
 export interface ContentRevision { id: number; revision_number: number; snapshot: Record<string, unknown>; editor_username: string; created_at: string; }
 export interface ContentComment { id: number; item_id?: number; name: string; email?: string; body: string; status: 'pending' | 'approved' | 'rejected'; created_at: string; }
-export interface ContactInboxItem { id: number; name: string; email: string; message: string; reviewed: boolean; created_at: string; }
+export interface ContactInboxItem { id: number; name: string; email: string; message: string; reviewed: boolean; archived: boolean; created_at: string; }
 export interface AnalyticsSummary { period_days: number; page_views: number; outbound_clicks: number; searches: number; unique_daily_visitors_approx: number; popular_paths: { path: string; views: number }[]; daily_page_views: { day: string; views: number }[]; }
 
 export interface AuditEventItem { id: number; actor: string; action: string; object_type: string; object_id: string; details: Record<string, unknown>; created_at: string; }
 export interface NewsletterSubscriberItem { id: number; email: string; is_active: boolean; confirmed_at: string | null; created_at: string; }
+
+export interface StaffLoginResponse { detail: string; user?: AdminUser; requires_two_factor?: boolean; challenge?: string; }
+export interface TwoFactorStatus { enabled: boolean; secret: string; otpauth_uri: string; }
