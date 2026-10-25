@@ -4,7 +4,7 @@ The supplied `v2.15.0 source code.zip` was extracted and the actual skill script
 
 ## Selected global direction
 
-The real `--design-system` run for `personal creator content discovery media library digital magazine` returned **Swiss Modernism 2.0** and a **Scroll-Triggered Storytelling** pattern. The selected palette is editorial black/white and warm off-white with restrained pink accent (`#EC4899`), a grid-led layout, and moderate motion (`variance=6`, `motion=4`, `density=5`). The generated master is stored in `design-system/alib/MASTER.md`.
+The real `--design-system` run for `personal creator content discovery media library digital magazine` returned **Swiss Modernism 2.0** and a **Scroll-Triggered Storytelling** pattern. The selected palette has been updated to editorial navy/blue (`#2563EB`) with warm off-white surfaces and bright yellow accents (`#FACC15`), a grid-led layout, and moderate motion (`variance=6`, `motion=4`, `density=5`). The generated master is stored in `design-system/alib/MASTER.md`.
 
 ## Verified targeted results applied
 
