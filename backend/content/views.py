@@ -637,6 +637,23 @@ class ContentCommentViewSet(viewsets.ModelViewSet):
         return Response(ContentCommentSerializer(comment).data)
 
 
+class ScheduledPublishTriggerAPIView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        expected = settings.ALIB_SCHEDULER_TOKEN
+        supplied = request.headers.get('X-ALIB-Scheduler-Token', '')
+        if not expected or len(expected) < 32 or not secrets.compare_digest(expected, supplied):
+            return Response({'detail': 'Invalid scheduler credentials.'}, status=status.HTTP_403_FORBIDDEN)
+        from django.core.management import call_command
+        from io import StringIO
+        output = StringIO()
+        call_command('publish_scheduled', stdout=output)
+        AuditEvent.objects.create(actor=None, action='scheduler.publish_scheduled', object_type='ContentItem', details={'output': output.getvalue().strip()})
+        return Response({'detail': 'Scheduled publishing completed.', 'result': output.getvalue().strip()})
+
+
 class NewsletterSubscribeAPIView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
