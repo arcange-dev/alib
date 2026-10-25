@@ -120,7 +120,7 @@ function SiteFooter() {
   return <footer className="site-footer"><div className="footer-inner">
     <Link to="/" className="brand footer-brand"><span className="brand-mark">A<span>.</span></span><span className="brand-word">ALIB</span></Link>
     <p>A small home for a growing digital world.</p>
-    <div className="footer-links"><Link to="/about">About</Link><Link to="/contact">Contact</Link><Link to="/suggest">Recommend</Link><Link to="/privacy">Privacy</Link><a href="/feed.xml">RSS feed <ArrowUpRight size={13} /></a><Link to="/admin">Creator Studio <ArrowUpRight size={13} /></Link></div>
+    <div className="footer-links"><Link to="/about">About</Link><Link to="/contact">Contact</Link><Link to="/suggest">Recommend</Link><Link to="/privacy">Privacy</Link><a href="/feed.xml">RSS feed <ArrowUpRight size={13} /></a><a href="/atom.xml">Atom feed <ArrowUpRight size={13} /></a><Link to="/admin">Creator Studio <ArrowUpRight size={13} /></Link></div>
     <NewsletterSignup />
     <span className="footer-year">© {new Date().getFullYear()} ALIB</span>
   </div></footer>;
