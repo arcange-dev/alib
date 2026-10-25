@@ -509,6 +509,7 @@ function ContentBody({ body }: { body: string }) {
   const blocks = body.replace(/\r\n/g, '\n').split(/\n\s*\n/).filter(block => block.trim());
   return <div className="content-markdown">{blocks.map((block, index) => {
     const trimmed = block.trim();
+    const lines = trimmed.split('\\n');
     const heading = trimmed.match(/^(#{1,3})\s+(.+)$/);
     if (trimmed.startsWith('```') && trimmed.endsWith('```') && lines.length >= 2) {
       const code = lines.slice(1, -1).join('\n');
@@ -792,7 +793,7 @@ function TeamManagementPanel({ isOwner, currentUserId, onMessage }: { isOwner: b
     catch (e) { onMessage(e instanceof Error ? e.message : 'Invitation could not be sent. Check the email provider settings.'); }
     finally { setInviting(false); }
   }
-  async function update(member: TeamMember, payload: { role?: TeamRole; is_active?: boolean }) {
+  async function update(member: TeamMember, payload: { role?: TeamRole; is_active?: boolean; reset_two_factor?: boolean }) {
     try { const saved = await api.updateTeamMember(member.id, payload); setMembers(current => current.map(row => row.id === saved.id ? saved : row)); onMessage(`Updated access for ${member.username}.`); }
     catch (e) { onMessage(e instanceof Error ? e.message : 'Team access could not be updated.'); await reload(); }
   }
