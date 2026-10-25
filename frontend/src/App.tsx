@@ -1025,7 +1025,7 @@ function CreatorProfilePanel({ onMessage }: { onMessage: (message: string) => vo
   const [profile, setProfile] = useState<CreatorProfile>(fallbackProfile);
   const [socialJson, setSocialJson] = useState('{}');
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [, setSaving] = useState(false);
   useEffect(() => {
     api.profile().then(value => { setProfile(value); setSocialJson(JSON.stringify(value.social_links || {}, null, 2)); })
       .catch(e => onMessage(e instanceof Error ? e.message : 'Profile could not load.'))
@@ -1053,7 +1053,7 @@ function CreatorProfilePanel({ onMessage }: { onMessage: (message: string) => vo
 function SiteSettingsPanel({ onMessage }: { onMessage: (message: string) => void }) {
   const [settings, setSettings] = useState<SiteSettings>({ site_title: 'ALIB — Digital Home', logo_url: '', favicon_url: '', seo_description: '', homepage_sections: ['featured', 'latest', 'categories', 'collections'], theme_preferences: { primary: '#2563eb', secondary: '#facc15' }, owner_name: 'Mukamyi Izere Arcange', copyright_text: '© {year} {owner_name}. All rights reserved.', site_copy: {} });
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [, setSaving] = useState(false);
   const [copyJson, setCopyJson] = useState('{}');
   const sectionOptions = [
     { key: 'featured', label: 'Featured content', help: 'Curated highlights near the top of the homepage.' },

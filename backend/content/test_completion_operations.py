@@ -6,7 +6,7 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from content.models import AuditEvent, Category, Collection, CollectionItem, ContactMessage, ContentItem, Tag, VisitorSuggestion
+from content.models import AuditEvent, Category, Collection, CollectionItem, ContactMessage, ContentItem, SiteSettings, Tag, VisitorSuggestion
 from content.permissions import MODERATOR_GROUP
 from django.contrib.auth.models import Group
 
