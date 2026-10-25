@@ -215,7 +215,10 @@ function ContentCard({ item, index }: { item: ContentItem; index: number }) {
 
 function DefaultCover({ type, title }: { type: ContentType; title: string }) {
   const Icon = type === 'article' || type === 'note' ? FileText : type === 'video' || type === 'podcast' ? Video : type === 'link' ? Link2 : type === 'book' ? BookOpen : type === 'project' ? Layers3 : FolderOpen;
-  return <div className={`default-cover cover-${type}`}><div className="cover-topline"><span>ALIB / INDEX</span><span>{String(title.length).padStart(2, '0')}</span></div><Icon size={33} strokeWidth={1.3} /><span className="cover-title">{title}</span><span className="cover-bottomline">ARCHIVE ENTRY</span>function DiscoverPage() {
+  return <div className={`default-cover cover-${type}`}><div className="cover-topline"><span>ALIB / INDEX</span><span>{String(title.length).padStart(2, '0')}</span></div><Icon size={33} strokeWidth={1.3} /><span className="cover-title">{title}</span><span className="cover-bottomline">ARCHIVE ENTRY</span></div>;
+}
+
+function DiscoverPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState<ContentItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
