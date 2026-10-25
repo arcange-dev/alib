@@ -46,13 +46,19 @@ class ContentItemSerializer(serializers.ModelSerializer):
 
 class CollectionSerializer(serializers.ModelSerializer):
     item_count = serializers.SerializerMethodField()
+    current_item_ids = serializers.SerializerMethodField()
     item_ids = serializers.PrimaryKeyRelatedField(source='items', queryset=ContentItem.objects.all(), many=True, write_only=True, required=False)
     class Meta:
         model = Collection
-        fields = ['id', 'title', 'slug', 'description', 'cover_image_url', 'visibility', 'display_order', 'item_count', 'item_ids', 'created_at', 'updated_at']
+        fields = ['id', 'title', 'slug', 'description', 'cover_image_url', 'visibility', 'display_order', 'item_count', 'current_item_ids', 'item_ids', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at', 'item_count']
     def get_item_count(self, obj):
         return obj.items.filter(status='published', visibility='public').count()
+    def get_current_item_ids(self, obj):
+        request = self.context.get('request')
+        if request and request.user and request.user.is_authenticated and request.user.is_staff:
+            return list(CollectionItem.objects.filter(collection=obj).order_by('display_order', 'id').values_list('item_id', flat=True))
+        return []
     def create(self, validated_data):
         items = validated_data.pop('items', [])
         collection = super().create(validated_data)
