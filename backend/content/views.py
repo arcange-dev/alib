@@ -320,7 +320,30 @@ class VisitorSuggestionViewSet(viewsets.ModelViewSet):
             return [AllowAny()]
         return [IsALIBModerator()]
     def perform_create(self, serializer):
+        url = serializer.validated_data['url']
+        if VisitorSuggestion.objects.filter(url__iexact=url).exclude(status='rejected').exists():
+            raise ValidationError({'url': 'This link has already been submitted or approved.'})
         serializer.save(status='pending')
+
+    @action(detail=False, methods=['post'], permission_classes=[IsALIBModerator], url_path='bulk-review')
+    def bulk_review(self, request):
+        ids = request.data.get('ids')
+        decision = request.data.get('status')
+        if not isinstance(ids, list) or not ids or len(ids) > 100:
+            raise ValidationError({'ids': 'Choose between 1 and 100 suggestions.'})
+        if decision not in {'approved', 'rejected', 'pending'}:
+            raise ValidationError({'status': 'Choose pending, approved, or rejected.'})
+        valid_ids = [value for value in ids if isinstance(value, int) and value > 0]
+        if len(valid_ids) != len(ids):
+            raise ValidationError({'ids': 'Every suggestion ID must be a positive integer.'})
+        rows = list(VisitorSuggestion.objects.filter(pk__in=valid_ids))
+        now = timezone.now()
+        for row in rows:
+            row.status = decision
+            row.reviewed_by = request.user
+        VisitorSuggestion.objects.bulk_update(rows, ['status', 'reviewed_by'])
+        AuditEvent.objects.bulk_create([AuditEvent(actor=request.user, action='suggestion.bulk_reviewed', object_type='VisitorSuggestion', object_id=str(row.pk), details={'status': decision}) for row in rows])
+        return Response({'updated': len(rows), 'status': decision})
 
     @action(detail=True, methods=['post'], permission_classes=[IsALIBModerator], url_path='review')
     def review(self, request, pk=None):
