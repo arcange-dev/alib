@@ -617,7 +617,7 @@ class ContentCommentViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['create', 'list']:
             return [AllowAny()]
-        return [IsAdminUser()]
+        return [IsALIBModerator()]
     def perform_create(self, serializer):
         item = serializer.validated_data.get('item')
         if not item or item.status != 'published' or item.visibility != 'public' or not item.published_at or item.published_at > timezone.now():
