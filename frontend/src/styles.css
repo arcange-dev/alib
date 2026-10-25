@@ -793,3 +793,21 @@ kbd { padding: 2px 5px; color: var(--muted); background: var(--surface-soft); bo
   .newsletter-signup { width: 100%; }
   .editor-live-preview { margin-inline: 16px; }
 }
+
+
+/* Public branding and adaptive homepage sections */
+.brand-logo { display: block; width: auto; max-width: 46px; height: 38px; object-fit: contain; border-radius: 6px; }
+.homepage-category-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.homepage-category { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 60px; padding: 15px 17px; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; font-size: 12px; transition: border-color var(--motion-fast) ease, background var(--motion-fast) ease, transform var(--motion-fast) ease; }
+.homepage-category:hover { border-color: var(--accent); background: var(--surface-soft); transform: translateY(-1px); }
+.homepage-category svg { color: var(--accent-hover); flex-shrink: 0; }
+.team-management-layout { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 18px; }
+.team-member-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 15px 20px; border-top: 1px solid var(--border); }
+.team-member-identity { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.team-member-identity > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.team-member-identity strong { font-size: 12px; }
+.team-member-identity a, .team-member-identity small { color: var(--muted); font-size: 9px; overflow-wrap: anywhere; }
+.team-member-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; flex-shrink: 0; }
+.team-member-controls select { max-width: 130px; padding: 7px 8px; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; font-size: 10px; }
+@media (max-width: 900px) { .team-management-layout { grid-template-columns: 1fr; } }
+@media (max-width: 620px) { .team-member-row { align-items: flex-start; flex-direction: column; } .team-member-controls { width: 100%; } .team-member-controls select { flex: 1; max-width: none; } }
