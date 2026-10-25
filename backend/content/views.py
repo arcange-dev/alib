@@ -74,6 +74,21 @@ class ContentItemViewSet(viewsets.ModelViewSet):
         tag = self.request.query_params.get('tag')
         if tag:
             queryset = queryset.filter(tags__slug=tag)
+        featured = self.request.query_params.get('featured')
+        if featured in {'true', 'false'}:
+            queryset = queryset.filter(featured=(featured == 'true'))
+        from_date = self.request.query_params.get('from_date')
+        to_date = self.request.query_params.get('to_date')
+        if from_date:
+            parsed = __import__('django.utils.dateparse', fromlist=['parse_date']).parse_date(from_date)
+            if parsed is None:
+                raise ValidationError({'from_date': 'Use YYYY-MM-DD.'})
+            queryset = queryset.filter(published_at__date__gte=parsed)
+        if to_date:
+            parsed = __import__('django.utils.dateparse', fromlist=['parse_date']).parse_date(to_date)
+            if parsed is None:
+                raise ValidationError({'to_date': 'Use YYYY-MM-DD.'})
+            queryset = queryset.filter(published_at__date__lte=parsed)
         return queryset.distinct()
 
     def perform_create(self, serializer):
@@ -127,7 +142,7 @@ class ContentItemViewSet(viewsets.ModelViewSet):
         AuditEvent.objects.create(actor=self.request.user, action='content.deleted', object_type='ContentItem', object_id=str(instance.pk), details={'title': instance.title})
         instance.delete()
 
-    @action(detail=False, methods=['get'], url_path=r'by-slug/(?P<slug>[^/.]+)', permission_classes=[AllowAny], authentication_classes=[])
+    @action(detail=False, methods=['get'], url_path=r'by-slug/(?P<slug>[^/.]+)', permission_classes=[AllowAny])
     def by_slug(self, request, slug=None):
         item = self.get_queryset().filter(slug=slug).first()
         if not item:
