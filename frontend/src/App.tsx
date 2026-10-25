@@ -646,7 +646,7 @@ function CollectionsManagerPanel({ items, onMessage }: { items: ContentItem[]; o
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [cover, setCover] = useState('');
-  const [visibility, setVisibility] = useState('public');
+  const [visibility, setVisibility] = useState<'public' | 'unlisted' | 'private'>('public');
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
