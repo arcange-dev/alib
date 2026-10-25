@@ -30,6 +30,8 @@ export const api = {
   restoreRevision: (id: number, revisionId: number) => request<ContentItem>(`/content/${id}/restore-revision/`, { method: 'POST', body: JSON.stringify({ revision_id: revisionId }) }),
   analytics: (event_type: 'page_view' | 'outbound_click' | 'search', path: string, item_id?: number) => request<{ detail: string }>('/analytics/event/', { method: 'POST', body: JSON.stringify({ event_type, path, referrer: document.referrer, item_id }) }),
   adminAnalytics: () => request<AnalyticsSummary>('/admin/analytics/'),
+  auditEvents: (params: Record<string, string> = {}) => request<AuditEventItem[]>(`/admin/audit/${new URLSearchParams(params).size ? `?${new URLSearchParams(params)}` : ''}`),
+  newsletterSubscribers: (active = 'all') => request<NewsletterSubscriberItem[]>(`/admin/newsletter/${active === 'all' ? '' : `?active=${active}`}`),
   contactInbox: () => request<ContactInboxItem[]>('/admin/contact/'),
   saveProfile: (payload: Partial<CreatorProfile>) => request<CreatorProfile>('/admin/profile/', { method: 'PUT', body: JSON.stringify(payload) }),
   team: () => request<TeamMember[]>('/admin/team/'),
@@ -114,3 +116,6 @@ export interface ContentRevision { id: number; revision_number: number; snapshot
 export interface ContentComment { id: number; item_id?: number; name: string; email?: string; body: string; status: 'pending' | 'approved' | 'rejected'; created_at: string; }
 export interface ContactInboxItem { id: number; name: string; email: string; message: string; reviewed: boolean; created_at: string; }
 export interface AnalyticsSummary { period_days: number; page_views: number; outbound_clicks: number; searches: number; unique_daily_visitors_approx: number; popular_paths: { path: string; views: number }[]; daily_page_views: { day: string; views: number }[]; }
+
+export interface AuditEventItem { id: number; actor: string; action: string; object_type: string; object_id: string; details: Record<string, unknown>; created_at: string; }
+export interface NewsletterSubscriberItem { id: number; email: string; is_active: boolean; confirmed_at: string | null; created_at: string; }
