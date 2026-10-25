@@ -228,7 +228,7 @@ class LoginAPIView(APIView):
         if user is None or not user.is_active or not user.is_staff:
             return Response({'detail': 'The sign-in details were not accepted.'}, status=status.HTTP_400_BAD_REQUEST)
         login(request, user)
-        return Response({'detail': 'Signed in.', 'user': {'id': user.pk, 'username': user.get_username(), 'email': user.email, 'is_staff': user.is_staff}})
+        return Response({'detail': 'Signed in.', 'user': {'id': user.pk, 'username': user.get_username(), 'email': user.email, 'is_staff': user.is_staff, 'role': _team_member_payload(user)['role']}})
 
 class LogoutAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -240,7 +240,7 @@ class CurrentUserAPIView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request):
         user = request.user
-        return Response({'id': user.pk, 'username': user.get_username(), 'email': user.email, 'is_staff': user.is_staff})
+        return Response({'id': user.pk, 'username': user.get_username(), 'email': user.email, 'is_staff': user.is_staff, 'role': _team_member_payload(user)['role']})
 
 class AdminStatsAPIView(APIView):
     permission_classes = [IsALIBStaff]
