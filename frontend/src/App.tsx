@@ -388,8 +388,26 @@ function ContentDetailPage() {
   useEffect(() => {
     if (!item) return;
     document.title = `${item.title} | ALIB`;
-    const description = document.querySelector('meta[name="description"]');
-    if (description && item.summary) description.setAttribute('content', item.summary);
+    const description = document.querySelector<HTMLMetaElement>('meta[name="description"]');
+    if (description && item.summary) description.content = item.summary;
+    const setProperty = (key: string, value: string) => {
+      let meta = document.querySelector<HTMLMetaElement>(`meta[property="${key}"]`);
+      if (!meta) { meta = document.createElement('meta'); meta.setAttribute('property', key); document.head.appendChild(meta); }
+      meta.content = value;
+    };
+    const setName = (key: string, value: string) => {
+      let meta = document.querySelector<HTMLMetaElement>(`meta[name="${key}"]`);
+      if (!meta) { meta = document.createElement('meta'); meta.setAttribute('name', key); document.head.appendChild(meta); }
+      meta.content = value;
+    };
+    setProperty('og:title', item.title);
+    setProperty('og:description', item.summary || 'A considered entry from the ALIB archive.');
+    setName('twitter:title', item.title);
+    setName('twitter:description', item.summary || 'A considered entry from the ALIB archive.');
+    if (item.cover_image_url) setProperty('og:image', item.cover_image_url);
+    let robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
+    if (!robots) { robots = document.createElement('meta'); robots.name = 'robots'; document.head.appendChild(robots); }
+    robots.content = item.status === 'published' && item.visibility === 'public' ? 'index,follow' : 'noindex,nofollow';
     api.related(item.id).then(setRelated).catch(() => setRelated([]));
     api.reactions(item.id).then(result => setReactionCounts(result.counts)).catch(() => {});
     api.comments(item.id).then(result => setComments(result.results)).catch(() => setComments([]));
@@ -588,6 +606,7 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
   const [tab, setTab] = useState<'overview' | 'content' | 'editor' | 'media' | 'settings' | 'profile' | 'collections' | 'inbox' | 'analytics' | 'moderation' | 'comments' | 'team' | 'audit' | 'newsletter'>('overview'); const [stats, setStats] = useState<AdminStats | null>(null); const [items, setItems] = useState<ContentItem[]>([]); const [categories, setCategories] = useState<Category[]>([]); const [tags, setTags] = useState<Tag[]>([]); const [media, setMedia] = useState<MediaAsset[]>([]); const [mediaAltText, setMediaAltText] = useState<Record<number, string>>({}); const [uploadProgress, setUploadProgress] = useState<number | null>(null); const [busy, setBusy] = useState(false); const [message, setMessage] = useState(''); const [editId, setEditId] = useState<number | undefined>();
   const emptyForm = { title: '', slug: '', summary: '', body: '', content_type: 'article' as ContentType, source_url: '', cover_image_url: '', status: 'draft', visibility: 'public', featured: false, allow_download: false, scheduled_for: '', category_id: '', tag_ids: [] as number[] };
   const [form, setForm] = useState(emptyForm);
+  const [hasUnsavedEdits, setHasUnsavedEdits] = useState(false);
   const role = user.role || 'editor';
   const canManage = role === 'administrator' || role === 'editor';
   const canModerate = role === 'administrator' || role === 'moderator';
@@ -605,6 +624,13 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
     } catch { localStorage.removeItem('alib-editor-draft'); }
   }, []);
   useEffect(() => {
+    if (tab === 'editor' && hasUnsavedEdits) {
+      const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+      window.addEventListener('beforeunload', warn);
+      return () => window.removeEventListener('beforeunload', warn);
+    }
+  }, [tab, hasUnsavedEdits]);
+  useEffect(() => {
     if (tab === 'editor' && !editId) {
       try { localStorage.setItem('alib-editor-draft', JSON.stringify({ form })); } catch { /* Autosave is a convenience, not a requirement for editing. */ }
     }
@@ -612,9 +638,9 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
   async function reload() { setBusy(true); try { const [s, c] = await Promise.all([api.adminStats(), api.adminContent({ page_size: '100' })]); setStats(s); setItems(c.results); } catch (e) { setMessage(e instanceof Error ? e.message : 'Unable to load dashboard data.'); } finally { setBusy(false); } }
   useEffect(() => { void reload(); api.categories().then(r => setCategories(r.results)).catch(() => setCategories([])); api.tags().then(r => setTags(r.results)).catch(() => setTags([])); }, []);
   async function loadMedia() { try { const result = await api.media(); setMedia(result.results); } catch (e) { setMessage(e instanceof Error ? e.message : 'Unable to load the media library.'); } }
-  function newItem() { setEditId(undefined); setForm(emptyForm); setMessage(''); setTab('editor'); }
-  function editItem(item: ContentItem) { setEditId(item.id); setForm({ title: item.title, slug: item.slug, summary: item.summary || '', body: item.body || '', content_type: item.content_type, source_url: item.source_url || '', cover_image_url: item.cover_image_url || '', status: item.status, visibility: item.visibility, featured: item.featured, allow_download: item.allow_download, scheduled_for: item.scheduled_for ? item.scheduled_for.slice(0, 16) : '', category_id: item.category?.id ? String(item.category.id) : '', tag_ids: item.tags.map(tag => tag.id) }); setMessage(''); setTab('editor'); }
-  async function saveItem(e: FormEvent) { e.preventDefault(); setBusy(true); setMessage(''); try { const payload = { ...form, scheduled_for: form.scheduled_for ? new Date(form.scheduled_for).toISOString() : null, category_id: form.category_id ? Number(form.category_id) : null, tag_ids: form.tag_ids }; await api.saveContent(payload as Partial<ContentItem>, editId); localStorage.removeItem('alib-editor-draft'); setMessage(form.status === 'published' ? 'Content published. Public pages will now show it.' : form.status === 'scheduled' ? 'Scheduled content saved. Ensure the publish_scheduled command is run by a scheduler.' : 'Draft saved successfully.'); await reload(); setTab('content'); } catch (e) { setMessage(e instanceof Error ? e.message : 'Could not save content.'); } finally { setBusy(false); } }
+  function newItem() { setEditId(undefined); setForm(emptyForm); setHasUnsavedEdits(false); setMessage(''); setTab('editor'); }
+  function editItem(item: ContentItem) { setEditId(item.id); setHasUnsavedEdits(false); setForm({ title: item.title, slug: item.slug, summary: item.summary || '', body: item.body || '', content_type: item.content_type, source_url: item.source_url || '', cover_image_url: item.cover_image_url || '', status: item.status, visibility: item.visibility, featured: item.featured, allow_download: item.allow_download, scheduled_for: item.scheduled_for ? item.scheduled_for.slice(0, 16) : '', category_id: item.category?.id ? String(item.category.id) : '', tag_ids: item.tags.map(tag => tag.id) }); setMessage(''); setTab('editor'); }
+  async function saveItem(e: FormEvent) { e.preventDefault(); setBusy(true); setMessage(''); try { const payload = { ...form, scheduled_for: form.scheduled_for ? new Date(form.scheduled_for).toISOString() : null, category_id: form.category_id ? Number(form.category_id) : null, tag_ids: form.tag_ids }; await api.saveContent(payload as Partial<ContentItem>, editId); localStorage.removeItem('alib-editor-draft'); setHasUnsavedEdits(false); setMessage(form.status === 'published' ? 'Content published. Public pages will now show it.' : form.status === 'scheduled' ? 'Scheduled content saved. Ensure the publish_scheduled command is run by a scheduler.' : 'Draft saved successfully.'); await reload(); setTab('content'); } catch (e) { setMessage(e instanceof Error ? e.message : 'Could not save content.'); } finally { setBusy(false); } }
   function insertMarkup(before: string, after = '') {
     const element = bodyRef.current;
     if (!element) return;
@@ -625,7 +651,7 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
     window.requestAnimationFrame(() => { element.focus(); element.setSelectionRange(start + before.length, start + before.length + selected.length); });
   }
   async function removeItem(item: ContentItem) { if (!window.confirm(`Delete “${item.title}”? This cannot be undone.`)) return; try { await api.deleteContent(item.id); setMessage('Content deleted.'); await reload(); } catch (e) { setMessage(e instanceof Error ? e.message : 'Could not delete content.'); } }
-  function setField<K extends keyof typeof emptyForm>(key: K, value: (typeof emptyForm)[K]) { setForm(prev => ({ ...prev, [key]: value })); }
+  function setField<K extends keyof typeof emptyForm>(key: K, value: (typeof emptyForm)[K]) { setHasUnsavedEdits(true); setForm(prev => ({ ...prev, [key]: value })); }
   return <div className="admin-page"><aside className="admin-sidebar"><Link to="/" className="brand"><span className="brand-mark">A<span>.</span></span><span className="brand-word">ALIB</span></Link><div className="studio-caption"><span className="status-dot" /> CREATOR STUDIO</div><div className="admin-workspace-label">WORKSPACE</div><nav className="admin-menu" aria-label="Creator Studio navigation">
       <button className={tab === 'overview' ? 'selected' : ''} onClick={() => setTab('overview')}><Compass size={17} /> Overview</button>
       {canManage && <button className={tab === 'content' ? 'selected' : ''} onClick={() => setTab('content')}><FileText size={17} /> All content <span className="nav-count">{items.length}</span></button>}
