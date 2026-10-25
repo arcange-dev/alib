@@ -36,7 +36,7 @@ export const api = {
   saveProfile: (payload: Partial<CreatorProfile>) => request<CreatorProfile>('/admin/profile/', { method: 'PUT', body: JSON.stringify(payload) }),
   team: () => request<TeamMember[]>('/admin/team/'),
   inviteTeamMember: (payload: { username: string; email: string; role: TeamRole }) => request<{ detail: string; member: TeamMember }>('/admin/team/', { method: 'POST', body: JSON.stringify(payload) }),
-  updateTeamMember: (id: number, payload: { role?: TeamRole; is_active?: boolean }) => request<TeamMember>(`/admin/team/${id}/`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  updateTeamMember: (id: number, payload: { role?: TeamRole; is_active?: boolean; reset_two_factor?: boolean }) => request<TeamMember>(`/admin/team/${id}/`, { method: 'PATCH', body: JSON.stringify(payload) }),
   saveCollection: (payload: Partial<Collection> & { item_ids?: number[] }, id?: number) => request<Collection>(id ? `/collections/${id}/` : '/collections/', { method: id ? 'PATCH' : 'POST', body: JSON.stringify(payload) }),
   adminSuggestions: () => request<PageResult<{ id: number; title: string; url: string; reason: string; status: string; created_at: string }>>('/suggestions/?page_size=100'),
   reviewSuggestion: (id: number, status: 'pending' | 'approved' | 'rejected') => request<{ id: number; status: string }>(`/suggestions/${id}/review/`, { method: 'POST', body: JSON.stringify({ status }) }),
