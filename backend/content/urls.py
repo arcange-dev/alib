@@ -4,7 +4,7 @@ from .views import (
     StaffTwoFactorAPIView, TwoFactorLoginVerifyAPIView,
     AdminAnalyticsAPIView, AdminAuditEventAPIView, AdminNewsletterAPIView, AdminTeamAPIView, AdminTeamMemberAPIView, ContentReactionAPIView, AdminMediaViewSet, AdminProfileAPIView, AdminSiteSettingsAPIView, AdminStatsAPIView, AnalyticsEventAPIView, CategoryViewSet, CollectionViewSet,
     ContactAPIView, ContactInboxAPIView, ContentCommentViewSet, ContentItemViewSet, CsrfAPIView, CurrentUserAPIView, HomeAPIView, LoginAPIView,
-    LogoutAPIView, MediaSignedUrlAPIView, MediaUploadAPIView, NewsletterConfirmAPIView, NewsletterSubscribeAPIView, NewsletterUnsubscribeAPIView, PasswordResetConfirmAPIView, PasswordResetRequestAPIView, ScheduledPublishTriggerAPIView, ProfileAPIView, PublicSiteSettingsAPIView, StaffTwoFactorAPIView, TwoFactorLoginVerifyAPIView, TagViewSet,
+    LogoutAPIView, MediaSignedUrlAPIView, MediaUploadAPIView, NewsletterConfirmAPIView, NewsletterSubscribeAPIView, NewsletterUnsubscribeAPIView, PasswordResetConfirmAPIView, PasswordResetRequestAPIView, ScheduledPublishTriggerAPIView, ProfileAPIView, PublicSiteSettingsAPIView, TagViewSet,
     VisitorSuggestionViewSet,
 )
 

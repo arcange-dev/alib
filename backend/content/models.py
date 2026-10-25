@@ -28,6 +28,23 @@ class SiteSettings(TimestampedModel):
     theme_preferences = models.JSONField(default=dict, blank=True)
     def __str__(self): return self.site_title
 
+def _unique_generated_slug(instance, value, max_length):
+    """Generate a collision-free slug when a model derives it from a title/name."""
+    base = slugify(value)[:max_length]
+    if not base:
+        base = f"{instance._meta.model_name}-{uuid4().hex[:8]}"[:max_length]
+    queryset = instance.__class__.objects.all()
+    if instance.pk:
+        queryset = queryset.exclude(pk=instance.pk)
+    candidate = base
+    suffix = 2
+    while queryset.filter(slug=candidate).exists():
+        ending = f"-{suffix}"
+        candidate = f"{base[:max_length - len(ending)]}{ending}"
+        suffix += 1
+    return candidate
+
+
 class Category(TimestampedModel):
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(max_length=120, unique=True)
@@ -36,7 +53,7 @@ class Category(TimestampedModel):
     class Meta:
         ordering = ['display_order', 'name']
     def save(self, *args, **kwargs):
-        if not self.slug: self.slug = slugify(self.name)
+        if not self.slug: self.slug = _unique_generated_slug(self, self.name, 120)
         super().save(*args, **kwargs)
     def __str__(self): return self.name
 
@@ -44,7 +61,7 @@ class Tag(TimestampedModel):
     name = models.CharField(max_length=70, unique=True)
     slug = models.SlugField(max_length=80, unique=True)
     def save(self, *args, **kwargs):
-        if not self.slug: self.slug = slugify(self.name)
+        if not self.slug: self.slug = _unique_generated_slug(self, self.name, 80)
         super().save(*args, **kwargs)
     def __str__(self): return self.name
 
@@ -59,7 +76,7 @@ class Collection(TimestampedModel):
     class Meta:
         ordering = ['display_order', '-updated_at']
     def save(self, *args, **kwargs):
-        if not self.slug: self.slug = slugify(self.title)
+        if not self.slug: self.slug = _unique_generated_slug(self, self.title, 200)
         super().save(*args, **kwargs)
     def __str__(self): return self.title
 

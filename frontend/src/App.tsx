@@ -14,6 +14,16 @@ const fallbackProfile: CreatorProfile = {
   avatar_url: '', location: '', social_links: {},
 };
 
+function safeStorageGet(key: string): string | null {
+  try { return window.localStorage.getItem(key); } catch { return null; }
+}
+function safeStorageSet(key: string, value: string): void {
+  try { window.localStorage.setItem(key, value); } catch { /* Storage is optional; keep the app usable when blocked or full. */ }
+}
+function safeStorageRemove(key: string): void {
+  try { window.localStorage.removeItem(key); } catch { /* Ignore unavailable browser storage. */ }
+}
+
 const navItems = [
   { to: '/', label: 'Home', icon: Compass },
   { to: '/discover', label: 'Discover', icon: Search },
@@ -24,12 +34,12 @@ const navItems = [
 ];
 
 function App() {
-  const [dark, setDark] = useState(() => localStorage.getItem('alib-theme') === 'dark');
+  const [dark, setDark] = useState(() => safeStorageGet('alib-theme') === 'dark');
   const [mobileNav, setMobileNav] = useState(false);
   const location = useLocation();
   useEffect(() => {
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-    localStorage.setItem('alib-theme', dark ? 'dark' : 'light');
+    safeStorageSet('alib-theme', dark ? 'dark' : 'light');
   }, [dark]);
   useEffect(() => {
     const labels: Record<string, string> = { '/': 'Digital Home', '/discover': 'Discover', '/posts': 'Writing', '/favorites': 'Reading List', '/projects': 'Projects', '/resources': 'Resources', '/collections': 'Collections', '/about': 'About', '/contact': 'Contact', '/suggest': 'Recommend', '/admin': 'Creator Studio' };
@@ -323,12 +333,12 @@ const BOOKMARKS_KEY = 'alib-bookmarks';
 
 function readBookmarks(): number[] {
   try {
-    const saved = JSON.parse(localStorage.getItem(BOOKMARKS_KEY) || '[]');
+    const saved = JSON.parse(safeStorageGet(BOOKMARKS_KEY) || '[]');
     return Array.isArray(saved) ? saved.filter((id): id is number => Number.isInteger(id)) : [];
   } catch { return []; }
 }
 function writeBookmarks(ids: number[]) {
-  try { localStorage.setItem(BOOKMARKS_KEY, JSON.stringify([...new Set(ids)])); window.dispatchEvent(new Event('alib-bookmarks-changed')); } catch { /* Storage may be disabled; the page remains usable. */ }
+  try { safeStorageSet(BOOKMARKS_KEY, JSON.stringify([...new Set(ids)])); window.dispatchEvent(new Event('alib-bookmarks-changed')); } catch { /* Storage may be disabled; the page remains usable. */ }
 }
 function BookmarkButton({ itemId, compact = false }: { itemId: number; compact?: boolean }) {
   const [saved, setSaved] = useState(() => readBookmarks().includes(itemId));
@@ -626,7 +636,7 @@ function MediaThumbnail({ asset }: { asset: MediaAsset }) {
 
 function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => void }) {
   const [tab, setTab] = useState<'overview' | 'content' | 'editor' | 'media' | 'settings' | 'profile' | 'collections' | 'inbox' | 'analytics' | 'moderation' | 'comments' | 'team' | 'audit' | 'newsletter' | 'security'>('overview');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('alib-studio-sidebar-collapsed') === 'true');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => safeStorageGet('alib-studio-sidebar-collapsed') === 'true');
   const [stats, setStats] = useState<AdminStats | null>(null); const [items, setItems] = useState<ContentItem[]>([]); const [categories, setCategories] = useState<Category[]>([]); const [tags, setTags] = useState<Tag[]>([]); const [media, setMedia] = useState<MediaAsset[]>([]); const [mediaAltText, setMediaAltText] = useState<Record<number, string>>({}); const [uploadProgress, setUploadProgress] = useState<number | null>(null); const [busy, setBusy] = useState(false); const [message, setMessage] = useState(''); const [editId, setEditId] = useState<number | undefined>();
   const emptyForm = { title: '', slug: '', summary: '', body: '', content_type: 'article' as ContentType, source_url: '', cover_image_url: '', status: 'draft', visibility: 'public', featured: false, allow_download: false, scheduled_for: '', category_id: '', tag_ids: [] as number[] };
   const [form, setForm] = useState(emptyForm);
@@ -637,18 +647,18 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
   const isAdmin = role === 'administrator';
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
-    try { localStorage.setItem('alib-studio-sidebar-collapsed', sidebarCollapsed ? 'true' : 'false'); } catch { /* The layout still works when storage is unavailable. */ }
+    try { safeStorageSet('alib-studio-sidebar-collapsed', sidebarCollapsed ? 'true' : 'false'); } catch { /* The layout still works when storage is unavailable. */ }
   }, [sidebarCollapsed]);
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('alib-editor-draft');
+      const saved = safeStorageGet('alib-editor-draft');
       const parsed = saved ? JSON.parse(saved) : null;
       if (parsed?.form && !editId) {
         setForm({ ...emptyForm, ...parsed.form });
         setMessage('Recovered an unsaved local draft. Save it to keep it in the database.');
         setTab('editor');
       }
-    } catch { localStorage.removeItem('alib-editor-draft'); }
+    } catch { safeStorageRemove('alib-editor-draft'); }
   }, []);
   useEffect(() => {
     if (tab === 'editor' && hasUnsavedEdits) {
@@ -660,7 +670,7 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
   useEffect(() => {
     if (tab === 'editor' && hasUnsavedEdits) {
       const draftKey = editId ? `alib-editor-draft-${editId}` : 'alib-editor-draft';
-      try { localStorage.setItem(draftKey, JSON.stringify({ editId: editId ?? null, form, savedAt: new Date().toISOString() })); } catch { /* Autosave is a convenience, not a requirement for editing. */ }
+      try { safeStorageSet(draftKey, JSON.stringify({ editId: editId ?? null, form, savedAt: new Date().toISOString() })); } catch { /* Autosave is a convenience, not a requirement for editing. */ }
     }
   }, [form, tab, editId, hasUnsavedEdits]);
   async function reload() { setBusy(true); try { const [s, c] = await Promise.all([api.adminStats(), api.adminContent({ page_size: '100' })]); setStats(s); setItems(c.results); } catch (e) { setMessage(e instanceof Error ? e.message : 'Unable to load dashboard data.'); } finally { setBusy(false); } }
@@ -670,17 +680,17 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
     setEditId(undefined);
     let nextForm = emptyForm;
     try {
-      const saved = localStorage.getItem('alib-editor-draft');
+      const saved = safeStorageGet('alib-editor-draft');
       const parsed = saved ? JSON.parse(saved) : null;
       if (parsed?.form) nextForm = { ...emptyForm, ...parsed.form };
-    } catch { localStorage.removeItem('alib-editor-draft'); }
+    } catch { safeStorageRemove('alib-editor-draft'); }
     setForm(nextForm);
     setHasUnsavedEdits(false);
     setMessage('');
     setTab('editor');
   }
-  function editItem(item: ContentItem) { let nextForm = { title: item.title, slug: item.slug, summary: item.summary || '', body: item.body || '', content_type: item.content_type, source_url: item.source_url || '', cover_image_url: item.cover_image_url || '', status: item.status, visibility: item.visibility, featured: item.featured, allow_download: item.allow_download, scheduled_for: item.scheduled_for ? item.scheduled_for.slice(0, 16) : '', category_id: item.category?.id ? String(item.category.id) : '', tag_ids: item.tags.map(tag => tag.id) }; let hasDraft = false; try { const saved = localStorage.getItem(`alib-editor-draft-${item.id}`); const parsed = saved ? JSON.parse(saved) : null; if (parsed?.form && parsed.editId === item.id) { nextForm = { ...nextForm, ...parsed.form }; hasDraft = true; } } catch { localStorage.removeItem(`alib-editor-draft-${item.id}`); } setEditId(item.id); setHasUnsavedEdits(hasDraft); setForm(nextForm); setMessage(hasDraft ? 'Recovered this item’s unsaved browser draft.' : ''); setTab('editor'); }
-  async function saveItem(e: FormEvent) { e.preventDefault(); setBusy(true); setMessage(''); try { const payload = { ...form, scheduled_for: form.scheduled_for ? new Date(form.scheduled_for).toISOString() : null, category_id: form.category_id ? Number(form.category_id) : null, tag_ids: form.tag_ids }; await api.saveContent(payload as Partial<ContentItem>, editId); localStorage.removeItem('alib-editor-draft'); if (editId) localStorage.removeItem(`alib-editor-draft-${editId}`); setHasUnsavedEdits(false); setMessage(form.status === 'published' ? 'Content published. Public pages will now show it.' : form.status === 'scheduled' ? 'Scheduled content saved. Ensure the publish_scheduled command is run by a scheduler.' : 'Draft saved successfully.'); await reload(); setTab('content'); } catch (e) { setMessage(e instanceof Error ? e.message : 'Could not save content.'); } finally { setBusy(false); } }
+  function editItem(item: ContentItem) { let nextForm = { title: item.title, slug: item.slug, summary: item.summary || '', body: item.body || '', content_type: item.content_type, source_url: item.source_url || '', cover_image_url: item.cover_image_url || '', status: item.status, visibility: item.visibility, featured: item.featured, allow_download: item.allow_download, scheduled_for: item.scheduled_for ? item.scheduled_for.slice(0, 16) : '', category_id: item.category?.id ? String(item.category.id) : '', tag_ids: item.tags.map(tag => tag.id) }; let hasDraft = false; try { const saved = safeStorageGet(`alib-editor-draft-${item.id}`); const parsed = saved ? JSON.parse(saved) : null; if (parsed?.form && parsed.editId === item.id) { nextForm = { ...nextForm, ...parsed.form }; hasDraft = true; } } catch { safeStorageRemove(`alib-editor-draft-${item.id}`); } setEditId(item.id); setHasUnsavedEdits(hasDraft); setForm(nextForm); setMessage(hasDraft ? 'Recovered this item’s unsaved browser draft.' : ''); setTab('editor'); }
+  async function saveItem(e: FormEvent) { e.preventDefault(); setBusy(true); setMessage(''); try { const payload = { ...form, scheduled_for: form.scheduled_for ? new Date(form.scheduled_for).toISOString() : null, category_id: form.category_id ? Number(form.category_id) : null, tag_ids: form.tag_ids }; await api.saveContent(payload as Partial<ContentItem>, editId); safeStorageRemove('alib-editor-draft'); if (editId) safeStorageRemove(`alib-editor-draft-${editId}`); setHasUnsavedEdits(false); setMessage(form.status === 'published' ? 'Content published. Public pages will now show it.' : form.status === 'scheduled' ? 'Scheduled content saved. Ensure the publish_scheduled command is run by a scheduler.' : 'Draft saved successfully.'); await reload(); setTab('content'); } catch (e) { setMessage(e instanceof Error ? e.message : 'Could not save content.'); } finally { setBusy(false); } }
   function insertMarkup(before: string, after = '') {
     const element = bodyRef.current;
     if (!element) return;

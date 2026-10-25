@@ -378,7 +378,9 @@ kbd { padding: 2px 5px; color: var(--muted); background: var(--surface-soft); bo
 .admin-sidebar .brand { padding: 0 11px; }
 .studio-caption { display: flex; align-items: center; gap: 10px; margin: 27px 10px 24px; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .14em; }
 .admin-workspace-label { margin: 0 10px 9px; color: var(--muted-soft); font-size: 9px; font-weight: 700; letter-spacing: .15em; }
-.admin-menu { display: flex; flex-direction: column; gap: 4px; }
+.admin-menu { display: flex; flex: 1 1 auto; flex-direction: column; gap: 4px; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-width: thin; }
+.admin-menu::-webkit-scrollbar { width: 5px; }
+.admin-menu::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
 .admin-menu > button, .admin-menu-link { display: flex; align-items: center; gap: 11px; min-height: 43px; padding: 0 11px; color: var(--muted); background: transparent; border: 1px solid transparent; border-radius: 6px; text-align: left; font-size: 12px; }
 .admin-menu > button:hover, .admin-menu-link:hover { color: var(--text-strong); background: var(--surface-soft); }
 .admin-menu > button.selected { color: var(--text-strong); background: var(--surface-soft); border-color: var(--border); font-weight: 700; }
@@ -387,7 +389,7 @@ kbd { padding: 2px 5px; color: var(--muted); background: var(--surface-soft); bo
 .nav-count { margin-left: auto; padding: 2px 6px; color: var(--muted); background: var(--surface-deep); border-radius: 4px; font-size: 9px; }
 .admin-menu-link { margin-top: 25px; border-top: 1px solid var(--border); border-radius: 0; padding-top: 9px; }
 .admin-menu-link svg:last-child { margin-left: auto; }
-.admin-sidebar-bottom { display: flex; align-items: center; gap: 10px; margin-top: auto; padding: 14px 7px 2px; border-top: 1px solid var(--border); }
+.admin-sidebar-bottom { display: flex; flex: 0 0 auto; align-items: center; gap: 10px; margin-top: auto; padding: 14px 7px 2px; border-top: 1px solid var(--border); }
 .admin-avatar { display: grid; place-items: center; width: 34px; height: 34px; flex: 0 0 auto; color: var(--accent-secondary-ink); background: var(--accent-secondary); border-radius: 50%; font-family: var(--serif); font-size: 18px; }
 .admin-user-meta { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
 .admin-user-meta strong { max-width: 125px; overflow: hidden; color: var(--text-strong); font-size: 11px; text-overflow: ellipsis; }
