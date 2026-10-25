@@ -1,4 +1,4 @@
-import type { Category, Collection, ContentItem, CreatorProfile, HomePayload, MediaAsset, PageResult } from './types';
+import type { Category, Collection, ContentItem, CreatorProfile, HomePayload, MediaAsset, PageResult, Tag } from './types';
 
 // Empty VITE_API_URL means same-origin API requests (the recommended Render setup).
 // For a separately hosted frontend, set it to the API origin without /api/v1.
@@ -53,6 +53,7 @@ export const api = {
   },
   contentDetail: (slug: string) => request<ContentItem>(`/content/by-slug/${encodeURIComponent(slug)}/`),
   categories: () => request<PageResult<Category>>('/categories/'),
+  tags: () => request<PageResult<Tag>>('/tags/'),
   collections: () => request<PageResult<Collection>>('/collections/'),
   profile: () => request<CreatorProfile>('/profile/'),
   contact: (payload: { name: string; email: string; message: string }) => request<{ detail: string }>('/contact/', { method: 'POST', body: JSON.stringify(payload) }),
