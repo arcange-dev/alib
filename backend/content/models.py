@@ -119,6 +119,7 @@ class MediaAsset(TimestampedModel):
     VISIBILITY = [('public', 'Public'), ('unlisted', 'Unlisted'), ('private', 'Private')]
     title = models.CharField(max_length=200, blank=True)
     description = models.CharField(max_length=500, blank=True)
+    alt_text = models.CharField(max_length=300, blank=True)
     original_filename = models.CharField(max_length=255)
     storage_path = models.CharField(max_length=700, unique=True)
     mime_type = models.CharField(max_length=120)
@@ -142,6 +143,67 @@ class ContactMessage(TimestampedModel):
     message = models.TextField(max_length=5000)
     reviewed = models.BooleanField(default=False, db_index=True)
     def __str__(self): return f'{self.name} — {self.created_at:%Y-%m-%d}'
+
+class ContentRevision(models.Model):
+    item = models.ForeignKey(ContentItem, on_delete=models.CASCADE, related_name='revisions')
+    revision_number = models.PositiveIntegerField()
+    snapshot = models.JSONField(default=dict)
+    editor = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        ordering = ['-revision_number']
+        constraints = [models.UniqueConstraint(fields=['item', 'revision_number'], name='unique_content_revision_number')]
+    def __str__(self):
+        return f'{self.item_id} revision {self.revision_number}'
+
+
+class AnalyticsEvent(models.Model):
+    EVENT_TYPES = [('page_view', 'Page view'), ('outbound_click', 'Outbound click'), ('search', 'Search')]
+    event_type = models.CharField(max_length=24, choices=EVENT_TYPES, db_index=True)
+    path = models.CharField(max_length=512, blank=True)
+    referrer = models.URLField(max_length=1000, blank=True)
+    visitor_hash = models.CharField(max_length=64, blank=True, db_index=True)
+    item = models.ForeignKey(ContentItem, null=True, blank=True, on_delete=models.SET_NULL, related_name='analytics_events')
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['event_type', 'created_at']), models.Index(fields=['path', 'created_at'])]
+
+
+class NewsletterSubscriber(models.Model):
+    email = models.EmailField(unique=True)
+    token_hash = models.CharField(max_length=64, blank=True, null=True, unique=True)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=False, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    def __str__(self):
+        return self.email
+
+
+class ContentReaction(models.Model):
+    REACTION_TYPES = [('like', 'Like'), ('love', 'Love'), ('useful', 'Useful')]
+    item = models.ForeignKey(ContentItem, on_delete=models.CASCADE, related_name='reactions')
+    reaction = models.CharField(max_length=12, choices=REACTION_TYPES)
+    visitor_hash = models.CharField(max_length=64)
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['item', 'reaction', 'visitor_hash'], name='unique_item_visitor_reaction')]
+
+
+class ContentComment(models.Model):
+    STATUSES = [('pending', 'Pending'), ('approved', 'Approved'), ('rejected', 'Rejected')]
+    item = models.ForeignKey(ContentItem, on_delete=models.CASCADE, related_name='comments')
+    name = models.CharField(max_length=120)
+    email = models.EmailField()
+    body = models.TextField(max_length=3000)
+    status = models.CharField(max_length=12, choices=STATUSES, default='pending', db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    moderated_at = models.DateTimeField(null=True, blank=True)
+    moderated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+    class Meta:
+        ordering = ['-created_at']
+
 
 class AuditEvent(models.Model):
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
