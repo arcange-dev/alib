@@ -31,6 +31,7 @@ export const api = {
   analytics: (event_type: 'page_view' | 'outbound_click' | 'search', path: string, item_id?: number) => request<{ detail: string }>('/analytics/event/', { method: 'POST', body: JSON.stringify({ event_type, path, referrer: document.referrer, item_id }) }),
   adminAnalytics: () => request<AnalyticsSummary>('/admin/analytics/'),
   contactInbox: () => request<ContactInboxItem[]>('/admin/contact/'),
+  saveProfile: (payload: Partial<CreatorProfile>) => request<CreatorProfile>('/admin/profile/', { method: 'PUT', body: JSON.stringify(payload) }),
   team: () => request<TeamMember[]>('/admin/team/'),
   inviteTeamMember: (payload: { username: string; email: string; role: TeamRole }) => request<{ detail: string; member: TeamMember }>('/admin/team/', { method: 'POST', body: JSON.stringify(payload) }),
   updateTeamMember: (id: number, payload: { role?: TeamRole; is_active?: boolean }) => request<TeamMember>(`/admin/team/${id}/`, { method: 'PATCH', body: JSON.stringify(payload) }),
@@ -80,7 +81,7 @@ export const api = {
 };
 
 export type TeamRole = 'administrator' | 'editor' | 'moderator' | 'support';
-export interface AdminUser { id: number; username: string; email: string; is_staff: boolean; role?: TeamRole; }
+export interface AdminUser { id: number; username: string; email: string; is_staff: boolean; is_superuser?: boolean; role?: TeamRole; }
 export interface TeamMember { id: number; username: string; email: string; is_active: boolean; is_superuser: boolean; role: TeamRole | 'none'; last_login: string | null; }
 export interface AdminStats { published: number; drafts: number; scheduled: number; assets: number; suggestions_pending: number; }
 
