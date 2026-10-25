@@ -115,7 +115,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'content.pagination.StandardResultsPagination',
     'PAGE_SIZE': 12,
     'DEFAULT_FILTER_BACKENDS': ['rest_framework.filters.SearchFilter', 'rest_framework.filters.OrderingFilter'],
-    'DEFAULT_THROTTLE_RATES': {'anon': '120/hour', 'user': '1200/hour', 'login': '10/hour', 'contact': '5/hour', 'suggestions': '10/hour', 'analytics': '60/hour', 'comments': '5/hour', 'newsletter': '3/hour'},
+    'DEFAULT_THROTTLE_RATES': {'anon': '120/hour', 'user': '1200/hour', 'login': '10/hour', 'contact': '5/hour', 'suggestions': '10/hour', 'analytics': '60/hour', 'comments': '5/hour', 'newsletter': '3/hour', 'two_factor': '10/hour'},
 }
 SPECTACULAR_SETTINGS = {
     'TITLE': 'ALIB API', 'DESCRIPTION': 'Creator-first content discovery and publishing API.',
