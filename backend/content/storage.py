@@ -36,6 +36,16 @@ def delete_object(object_key: str):
         raise APIException(f'Storage delete failed with status {response.status_code}.')
     return True
 
+def get_object(object_key: str):
+    base_url, key, bucket = _configuration()
+    try:
+        response = requests.get(f'{base_url}/storage/v1/object/{bucket}/{object_key}', headers=_headers(key), timeout=30)
+    except requests.RequestException as exc:
+        raise APIException('The storage provider could not be reached. Try again later.') from exc
+    if response.status_code != 200:
+        raise APIException(f'Storage read failed with status {response.status_code}.')
+    return response.content
+
 def signed_object_url(object_key: str, expires_in: int = 120):
     base_url, key, bucket = _configuration()
     try:

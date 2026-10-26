@@ -4,7 +4,7 @@ from .views import (
     StaffTwoFactorAPIView, TwoFactorLoginVerifyAPIView,
     AdminAnalyticsAPIView, AdminAuditEventAPIView, AdminNewsletterAPIView, AdminTeamAPIView, AdminTeamMemberAPIView, ContentReactionAPIView, AdminMediaViewSet, AdminProfileAPIView, AdminSiteSettingsAPIView, AdminStatsAPIView, AnalyticsEventAPIView, CategoryViewSet, CollectionViewSet,
     ContactAPIView, ContactInboxAPIView, ContentCommentViewSet, ContentItemViewSet, CsrfAPIView, CurrentUserAPIView, HomeAPIView, LoginAPIView,
-    LogoutAPIView, MediaSignedUrlAPIView, SessionAPIView, MediaUploadAPIView, NewsletterConfirmAPIView, NewsletterSubscribeAPIView, NewsletterUnsubscribeAPIView, PasswordResetConfirmAPIView, PasswordResetRequestAPIView, ScheduledPublishTriggerAPIView, ProfileAPIView, PublicSiteSettingsAPIView, TagViewSet,
+    LogoutAPIView, MediaSignedUrlAPIView, SessionAPIView, MediaUploadAPIView, MediaImageAPIView, NewsletterConfirmAPIView, NewsletterSubscribeAPIView, NewsletterUnsubscribeAPIView, PasswordResetConfirmAPIView, PasswordResetRequestAPIView, ScheduledPublishTriggerAPIView, ProfileAPIView, PublicSiteSettingsAPIView, TagViewSet,
     VisitorSuggestionViewSet,
 )
 
@@ -38,6 +38,7 @@ urlpatterns = [
     path('profile/', ProfileAPIView.as_view(), name='profile'),
     path('settings/', PublicSiteSettingsAPIView.as_view(), name='public-site-settings'),
     path('media/<int:asset_id>/signed-url/', MediaSignedUrlAPIView.as_view(), name='media-signed-url'),
+    path('media/<int:asset_id>/image/', MediaImageAPIView.as_view(), name='media-image'),
     path('contact/', ContactAPIView.as_view(), name='contact'),
     path('auth/csrf/', CsrfAPIView.as_view(), name='csrf'),
     path('auth/login/', LoginAPIView.as_view(), name='login'),

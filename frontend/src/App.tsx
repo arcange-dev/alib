@@ -3,10 +3,11 @@ import { Link, NavLink, Route, Routes, useLocation, useParams, useSearchParams }
 import {
   ArrowDown, ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, Bookmark, Check, ChevronDown, CircleHelp, Clock3, Command,
   Compass, ExternalLink, FileText, Filter, FolderOpen, Globe2, Heart, History, Inbox, Layers3, Link2, LockKeyhole, ChevronLeft, ChevronRight,
-  LogOut, Mail, Menu, MessageCircle, Moon, PenLine, Plus, Search, Share2, ShieldCheck, Sparkles, Sun, ThumbsUp, Trash2, Upload, Video, X, BarChart3, Settings2, Users, UserRound, ClipboardList, AtSign, ChevronsLeft,
+  LogOut, Mail, Menu, MessageCircle, Moon, PenLine, Plus, Search, Share2, ShieldCheck, Sparkles, Sun, ThumbsUp, Trash2, Upload, Video, X, BarChart3, Settings2, Users, UserRound, ClipboardList, AtSign, ChevronsLeft, Crop, ImagePlus,
 } from 'lucide-react';
 import { api, type AdminStats, type AdminUser, type AnalyticsSummary, type AuditEventItem, type ContactInboxItem, type ContentComment, type ContentRevision, type NewsletterSubscriberItem, type SiteSettings, type TeamMember, type TeamRole, type TwoFactorStatus } from './api';
 import type { Category, Collection, ContentItem, ContentType, CreatorProfile, HomePayload, MediaAsset, Tag } from './types';
+import Cropper from 'react-easy-crop';
 
 const fallbackProfile: CreatorProfile = {
   display_name: 'Mukamyi Izere Arcange', headline: 'A home for ideas worth keeping.',
@@ -737,6 +738,109 @@ function AdminLogin({ onLogin, error, setError }: { onLogin: (u: AdminUser) => v
   return <div className="admin-auth-wrap"><div className="admin-auth-art"><Link to="/" className="brand"><span className="brand-mark">A<span>.</span></span><span className="brand-word">ALIB</span></Link><div><span className="eyebrow">PRIVATE WORKSPACE</span><h1>Make room<br /><em>for the good stuff.</em></h1><p>Your ideas, projects, and digital archive — managed in one place.</p></div><span className="auth-art-stamp">CREATOR STUDIO<br />BUILD / SAVE / PUBLISH</span></div><div className="admin-auth-form"><Link to="/" className="back-link"><ArrowLeft size={15} /> Back to ALIB</Link><div className="admin-auth-form-inner"><span className="section-kicker">WELCOME BACK</span><h2>Sign in to your studio</h2><p>Use the administrator account created with Django.</p>{error && <div className="error-message" role="alert">{error}</div>}<form onSubmit={submit}>{challenge ? <><p>Enter the six-digit code from your authenticator app. This login challenge expires in five minutes and a code cannot be reused.</p><label>Authenticator code<input inputMode="numeric" pattern="[0-9]{6}" autoComplete="one-time-code" maxLength={6} value={authenticatorCode} onChange={e => setAuthenticatorCode(e.target.value.replace(/\D/g, '').slice(0, 6))} required autoFocus /></label><button className="button button-primary full-width" disabled={busy || authenticatorCode.length !== 6}>{busy ? 'Verifying…' : 'Verify and sign in'} <ArrowRight size={16} /></button><button type="button" className="button button-outline full-width" disabled={busy} onClick={() => { setChallenge(''); setAuthenticatorCode(''); setError(''); }}>Back to password</button></> : <><label>Username<input value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" required /></label><label>Password<input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" required /></label><button className="button button-primary full-width" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'} <ArrowRight size={16} /></button></>}</form>{!challenge && <p className="forgot-password"><Link to="/reset-password">Forgot your password?</Link></p>}<div className="secure-note"><ShieldCheck size={16} /><p>Protected by the Django server. Reset email delivery requires a configured email provider.</p></div></div><span className="auth-copyright">ALIB · PRIVATE BY DESIGN</span></div></div>;
 }
 
+function ImageField({ label, value, onChange, aspect, help }: { label: string; value: string; onChange: (url: string) => void; aspect?: number; help?: string }) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [cropName, setCropName] = useState('photo');
+  const [zoom, setZoom] = useState(1);
+  const [cropPos, setCropPos] = useState({ x: 0, y: 0 });
+  const [area, setArea] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState('');
+
+  async function uploadBlob(blob: Blob, name: string) {
+    setBusy(true); setNote('');
+    try {
+      const fd = new FormData();
+      const safeType = blob.type && blob.type.startsWith('image/') ? blob.type : 'image/png';
+      fd.append('file', new File([blob], name, { type: safeType }));
+      fd.append('title', name.replace(/\.[a-z0-9]+$/i, ''));
+      fd.append('visibility', 'public');
+      const asset = await api.uploadMedia(fd);
+      onChange(`/api/v1/media/${asset.id}/image/`);
+      setNote('Photo uploaded. Save to publish it.');
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : 'Upload failed. Configure storage or paste a URL instead.');
+    } finally { setBusy(false); }
+  }
+
+  function pick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.currentTarget.files?.[0];
+    e.currentTarget.value = '';
+    if (!file) return;
+    setCropName(file.name);
+    setCropSrc(URL.createObjectURL(file));
+    setZoom(1); setCropPos({ x: 0, y: 0 }); setArea(null); setNote('');
+  }
+
+  async function editExisting() {
+    if (!value) return;
+    setBusy(true); setNote('');
+    try {
+      const res = await fetch(value);
+      if (!res.ok) throw new Error('not found');
+      const blob = await res.blob();
+      setCropName('photo');
+      setCropSrc(URL.createObjectURL(blob));
+      setZoom(1); setCropPos({ x: 0, y: 0 }); setArea(null);
+    } catch {
+      setNote('This image cannot be edited here. Upload a new photo instead.');
+    } finally { setBusy(false); }
+  }
+
+  async function confirmCrop() {
+    if (!cropSrc || !area) return;
+    setBusy(true); setNote('');
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image();
+        image.crossOrigin = 'anonymous';
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error('Could not read the photo.'));
+        image.src = cropSrc;
+      });
+      const canvas = document.createElement('canvas');
+      canvas.width = area.width;
+      canvas.height = area.height;
+      canvas.getContext('2d')?.drawImage(img, area.x, area.y, area.width, area.height, 0, 0, area.width, area.height);
+      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+      if (!blob) throw new Error('Crop failed.');
+      await uploadBlob(blob, `${cropName.replace(/\.[^.]+$/, '')}-cropped.png`);
+      URL.revokeObjectURL(cropSrc);
+      setCropSrc(null);
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : 'Could not crop the photo.');
+    } finally { setBusy(false); }
+  }
+
+  return <div className="image-field">
+    <div className="image-field-preview">{value
+      ? <img src={value} alt="" loading="lazy" />
+      : <div className="image-field-empty"><ImagePlus size={20} /></div>}</div>
+    <div className="image-field-body">
+      <label>{label}<input type="url" value={value} onChange={e => onChange(e.target.value)} placeholder={help || 'https://… (optional) or upload a photo'} /></label>
+      <div className="image-field-actions">
+        <button type="button" className="button button-outline button-small" onClick={() => fileRef.current?.click()} disabled={busy}><Upload size={14} /> Upload photo</button>
+        {value && <button type="button" className="button button-outline button-small" onClick={() => void editExisting()} disabled={busy}><Crop size={14} /> Crop / edit</button>}
+        {value && <button type="button" className="button button-outline button-small media-delete" onClick={() => { onChange(''); setNote('Photo removed. Save to publish.'); }}><Trash2 size={14} /> Remove</button>}
+      </div>
+      {busy && <p className="muted-small">Working…</p>}
+      {note && <p className="muted-small">{note}</p>}
+    </div>
+    <input ref={fileRef} type="file" accept="image/*" className="admin-hidden-file-input" aria-label={`Upload photo for ${label}`} onChange={pick} />
+    {cropSrc && <div className="crop-modal" role="dialog" aria-label="Crop photo">
+      <div className="crop-card">
+        <div className="crop-area"><Cropper image={cropSrc} cropShape="rect" aspect={aspect ?? 16 / 10} zoom={zoom} crop={cropPos} onCropChange={setCropPos} onZoomChange={setZoom} onCropComplete={(_, pixels) => setArea(pixels)} /></div>
+        <label className="crop-zoom">Zoom<input type="range" min={1} max={3} step={0.01} value={zoom} onChange={e => setZoom(Number(e.target.value))} /></label>
+        <div className="crop-actions">
+          <button type="button" className="button button-outline button-small" onClick={() => { URL.revokeObjectURL(cropSrc); setCropSrc(null); setNote(''); }}>Cancel</button>
+          <button type="button" className="button button-primary button-small" onClick={() => void confirmCrop()} disabled={busy || !area}>{busy ? 'Saving…' : 'Use photo'} <Check size={14} /></button>
+        </div>
+      </div>
+    </div>}
+  </div>;
+}
+
 function MediaThumbnail({ asset }: { asset: MediaAsset }) {
   const [src, setSrc] = useState('');
   useEffect(() => {
@@ -921,7 +1025,7 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
     </div>
     <textarea ref={bodyRef} rows={9} value={form.body} onChange={e => setField('body', e.target.value)} placeholder="Write content in Markdown: ## headings, **bold**, bullet lists, > quotes, and [links](https://…). Blank lines start new paragraphs." />
   </label>
-  <div className="editor-live-preview"><span className="section-kicker">LIVE PREVIEW</span><ContentBody body={form.body || 'Your formatted article preview appears here as you write.'} /></div><label>Original source URL<input type="url" value={form.source_url} onChange={e => setField('source_url', e.target.value)} placeholder="https://…" /></label><label>Cover image URL<input type="url" value={form.cover_image_url} onChange={e => setField('cover_image_url', e.target.value)} placeholder="https://… (optional)" /></label>{form.status === 'scheduled' && <label>Publish date and time<input type="datetime-local" required value={form.scheduled_for} onChange={e => setField('scheduled_for', e.target.value)} /></label>}<div className="editor-options"><label className="check-field"><input type="checkbox" checked={form.featured} onChange={e => setField('featured', e.target.checked)} /> Feature on the homepage</label><label className="check-field"><input type="checkbox" checked={form.allow_download} onChange={e => setField('allow_download', e.target.checked)} /> Allow downloads (where supported)</label></div><div className="form-two-col"><label>Publication status<select value={form.status} onChange={e => setField('status', e.target.value)}><option value="draft">Draft</option><option value="published">Published</option><option value="scheduled">Scheduled (needs scheduler secrets configured)</option><option value="archived">Archived</option></select></label><label>Visibility<select value={form.visibility} onChange={e => setField('visibility', e.target.value)}><option value="public">Public</option><option value="unlisted">Unlisted</option><option value="private">Private</option></select></label></div><div className="editor-submit-row">{editId && form.slug && <button type="button" className="button button-outline" onClick={() => window.open(`/content/${encodeURIComponent(form.slug)}`, '_blank', 'noopener,noreferrer')} title="Requires you to be signed in with edit access in the same browser">Preview saved version <ArrowUpRight size={15} /></button>}<button type="button" className="button button-outline" onClick={() => setTab('content')}>Cancel</button><button className="button button-primary" disabled={busy}>{busy ? 'Saving…' : form.status === 'published' ? 'Publish content' : 'Save content'} <ArrowRight size={15} /></button></div><p className="editor-disclaimer">Autosave keeps an unsubmitted draft in this browser. Scheduled posts publish after the configured scheduler calls the server-side publish_scheduled command.</p></form><aside className="editor-sidebar"><div className="admin-panel editor-help-panel"><span className="section-kicker">PUBLISHING GUIDE</span><h3>From idea to public</h3><ol><li><span>01</span><p>Fill in the title and relevant details.</p></li><li><span>02</span><p>Save as a draft to keep editing privately.</p></li><li><span>03</span><p>Choose Public and Published to show it on the site.</p></li><li><span>04</span><p>Preview on the public site after publishing.</p></li></ol></div>{editId && <RevisionHistoryPanel itemId={editId} itemSlug={form.slug} onRestored={item => { editItem(item); setMessage('Revision restored and saved as a new revision.'); }} />}<div className="admin-panel visibility-help"><LockKeyhole size={18} /><div><strong>Private means private</strong><p>The backend filters draft, private, and unpublished content from anonymous requests.</p></div></div></aside></section>}
+  <div className="editor-live-preview"><span className="section-kicker">LIVE PREVIEW</span><ContentBody body={form.body || 'Your formatted article preview appears here as you write.'} /></div><label>Original source URL<input type="url" value={form.source_url} onChange={e => setField('source_url', e.target.value)} placeholder="https://…" /></label><ImageField label="Cover image" value={form.cover_image_url} onChange={url => setField('cover_image_url', url)} help="Shown on cards and at the top of this entry" />{form.status === 'scheduled' && <label>Publish date and time<input type="datetime-local" required value={form.scheduled_for} onChange={e => setField('scheduled_for', e.target.value)} /></label>}<div className="editor-options"><label className="check-field"><input type="checkbox" checked={form.featured} onChange={e => setField('featured', e.target.checked)} /> Feature on the homepage</label><label className="check-field"><input type="checkbox" checked={form.allow_download} onChange={e => setField('allow_download', e.target.checked)} /> Allow downloads (where supported)</label></div><div className="form-two-col"><label>Publication status<select value={form.status} onChange={e => setField('status', e.target.value)}><option value="draft">Draft</option><option value="published">Published</option><option value="scheduled">Scheduled (needs scheduler secrets configured)</option><option value="archived">Archived</option></select></label><label>Visibility<select value={form.visibility} onChange={e => setField('visibility', e.target.value)}><option value="public">Public</option><option value="unlisted">Unlisted</option><option value="private">Private</option></select></label></div><div className="editor-submit-row">{editId && form.slug && <button type="button" className="button button-outline" onClick={() => window.open(`/content/${encodeURIComponent(form.slug)}`, '_blank', 'noopener,noreferrer')} title="Requires you to be signed in with edit access in the same browser">Preview saved version <ArrowUpRight size={15} /></button>}<button type="button" className="button button-outline" onClick={() => setTab('content')}>Cancel</button><button className="button button-primary" disabled={busy}>{busy ? 'Saving…' : form.status === 'published' ? 'Publish content' : 'Save content'} <ArrowRight size={15} /></button></div><p className="editor-disclaimer">Autosave keeps an unsubmitted draft in this browser. Scheduled posts publish after the configured scheduler calls the server-side publish_scheduled command.</p></form><aside className="editor-sidebar"><div className="admin-panel editor-help-panel"><span className="section-kicker">PUBLISHING GUIDE</span><h3>From idea to public</h3><ol><li><span>01</span><p>Fill in the title and relevant details.</p></li><li><span>02</span><p>Save as a draft to keep editing privately.</p></li><li><span>03</span><p>Choose Public and Published to show it on the site.</p></li><li><span>04</span><p>Preview on the public site after publishing.</p></li></ol></div>{editId && <RevisionHistoryPanel itemId={editId} itemSlug={form.slug} onRestored={item => { editItem(item); setMessage('Revision restored and saved as a new revision.'); }} />}<div className="admin-panel visibility-help"><LockKeyhole size={18} /><div><strong>Private means private</strong><p>The backend filters draft, private, and unpublished content from anonymous requests.</p></div></div></aside></section>}
       {tab === 'media' && <section className="admin-panel media-panel"><div className="admin-panel-heading"><div><span className="section-kicker">ASSET LIBRARY</span><h2>Media that supports the story</h2><p>Upload cover images or permitted files. Storage needs server-side Supabase credentials.</p></div></div>{uploadProgress !== null && <div className="upload-progress" role="status"><progress max={100} value={uploadProgress} /><span>{uploadProgress >= 100 ? 'Upload complete' : `Uploading asset… ${uploadProgress}%`}</span></div>}{media.length ? <div className="media-grid">{media.map(asset => <div className="media-asset-card" key={asset.id}><div className="media-asset-thumb"><MediaThumbnail asset={asset} /></div><div className="media-asset-meta"><strong className="media-title-edit"><input type="text" maxLength={200} aria-label={`Title for ${asset.original_filename}`} value={mediaDraft(asset).title} placeholder={asset.original_filename} onChange={e => editMediaDraft(asset, { title: e.target.value })} onBlur={() => void saveMediaField(asset, 'title', 'title')} /></strong><span>{asset.mime_type} · {formatBytes(asset.file_size)}</span><label className="media-visibility">Description<input type="text" maxLength={500} aria-label={`Description for ${asset.original_filename}`} value={mediaDraft(asset).description} placeholder="Optional description" onChange={e => editMediaDraft(asset, { description: e.target.value })} onBlur={() => void saveMediaField(asset, 'description', 'description')} /></label><label className="media-visibility">Alt text<input type="text" maxLength={300} aria-label={`Alt text for ${asset.original_filename}`} value={mediaDraft(asset).alt_text} onChange={e => editMediaDraft(asset, { alt_text: e.target.value })} onBlur={() => void saveMediaField(asset, 'alt_text', 'alt text')} /></label><label className="media-visibility">Visibility<select aria-label={`Visibility for ${asset.title || asset.original_filename}`} value={asset.visibility} onChange={async e => { try { await api.updateMedia(asset.id, { visibility: e.target.value }); setMessage('Media visibility updated.'); await loadMedia(); } catch (err) { setMessage(err instanceof Error ? err.message : 'Could not update visibility.'); } }}><option value="private">Private</option><option value="unlisted">Unlisted</option><option value="public">Public</option></select></label><label className="media-download-check"><input type="checkbox" checked={asset.downloadable} onChange={async e => { try { await api.updateMedia(asset.id, { downloadable: e.target.checked }); setMessage('Download permission updated.'); await loadMedia(); } catch (err) { setMessage(err instanceof Error ? err.message : 'Could not update download permission.'); } }} /> Allow download</label></div><div className="media-asset-actions"><button className="button button-outline button-small" onClick={async () => { try { const signed = await api.signedMediaUrl(asset.id); window.open(signed.url, '_blank', 'noopener,noreferrer'); } catch (e) { setMessage(e instanceof Error ? e.message : 'Could not preview asset.'); } }}>Preview <ArrowUpRight size={14} /></button><button className="button button-outline button-small media-delete" aria-label={`Delete ${asset.title || asset.original_filename}`} onClick={() => void removeMedia(asset)}>Delete <Trash2 size={14} /></button></div></div>)}</div> : <div className="table-empty"><FolderOpen size={22} /><p>No media assets have been uploaded.</p><p className="muted-small">Configure SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, and SUPABASE_STORAGE_BUCKET on the backend to enable uploads.</p></div>}</section>}
       {tab === 'settings' && <SiteSettingsPanel onMessage={setMessage} />}
       {tab === 'profile' && canManage && <CreatorProfilePanel onMessage={setMessage} />}
@@ -1085,13 +1189,13 @@ function CreatorProfilePanel({ onMessage }: { onMessage: (message: string) => vo
     } catch (e) { onMessage(e instanceof Error ? e.message : 'Profile could not be saved.'); }
     finally { setSaving(false); }
   }
-  return <section className="admin-panel settings-panel"><div className="admin-panel-heading"><div><span className="section-kicker">PUBLIC CREATOR PROFILE</span><h2>About the creator</h2><p>{loading ? 'Loading profile…' : 'These fields appear on the public site.'}</p></div><UserRound size={19} /></div><form id="creator-profile-form" className="settings-form" onSubmit={save}><div className="form-two-col"><label>Display name<input required maxLength={120} value={profile.display_name} onChange={e => setField('display_name', e.target.value)} /></label><label>Location<input maxLength={120} value={profile.location} onChange={e => setField('location', e.target.value)} placeholder="Optional" /></label></div><label>Headline<input required maxLength={240} value={profile.headline} onChange={e => setField('headline', e.target.value)} /></label><label>Biography<textarea rows={6} maxLength={5000} value={profile.biography} onChange={e => setField('biography', e.target.value)} /></label><label>Avatar image URL<input type="url" value={profile.avatar_url} onChange={e => setField('avatar_url', e.target.value)} placeholder="https://… (optional)" /></label><label>Social links (JSON object)<textarea rows={4} spellCheck={false} value={socialJson} onChange={e => setSocialJson(e.target.value)} placeholder={'{ "website": "https://example.com" }'} /></label></form></section>;
+  return <section className="admin-panel settings-panel"><div className="admin-panel-heading"><div><span className="section-kicker">PUBLIC CREATOR PROFILE</span><h2>About the creator</h2><p>{loading ? 'Loading profile…' : 'These fields appear on the public site.'}</p></div><UserRound size={19} /></div><form id="creator-profile-form" className="settings-form" onSubmit={save}><div className="form-two-col"><label>Display name<input required maxLength={120} value={profile.display_name} onChange={e => setField('display_name', e.target.value)} /></label><label>Location<input maxLength={120} value={profile.location} onChange={e => setField('location', e.target.value)} placeholder="Optional" /></label></div><label>Headline<input required maxLength={240} value={profile.headline} onChange={e => setField('headline', e.target.value)} /></label><label>Biography<textarea rows={6} maxLength={5000} value={profile.biography} onChange={e => setField('biography', e.target.value)} /></label><ImageField label="Avatar photo" value={profile.avatar_url} onChange={url => setField('avatar_url', url)} aspect={1} help="Shown next to your profile on the public site" /><label>Social links (JSON object)<textarea rows={4} spellCheck={false} value={socialJson} onChange={e => setSocialJson(e.target.value)} placeholder={'{ "website": "https://example.com" }'} /></label></form></section>;
 }
 
 function SiteSettingsPanel({ onMessage }: { onMessage: (message: string) => void }) {
   const [settings, setSettings] = useState<SiteSettings>({ site_title: 'ALIB — Digital Home', logo_url: '', favicon_url: '', seo_description: '', homepage_sections: ['featured', 'latest', 'categories', 'collections'], theme_preferences: { primary: '#2563eb', secondary: '#facc15' }, owner_name: 'Mukamyi Izere Arcange', copyright_text: '© {year} {owner_name}. All rights reserved.', youtube_url: '', site_copy: {} });
   const [loading, setLoading] = useState(true);
-  const [, setSaving] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [newCopyKey, setNewCopyKey] = useState('');
   const [newCopyValue, setNewCopyValue] = useState('');
   const sectionOptions = [
@@ -1155,9 +1259,10 @@ function SiteSettingsPanel({ onMessage }: { onMessage: (message: string) => void
     setNewCopyValue('');
     onMessage('Website text field added. Save site settings to publish it.');
   }
-  return <section className="admin-panel settings-panel"><div className="admin-panel-heading"><div><span className="section-kicker">SITE CONFIGURATION</span><h2>Brand, profile and homepage</h2><p>{loading ? 'Loading settings…' : 'These values are saved in the database.'}</p></div><Settings2 size={19} /></div><form id="site-settings-form" className="settings-form" onSubmit={save}><label>Site title<input required maxLength={140} value={settings.site_title} onChange={e => set('site_title', e.target.value)} /></label><label>SEO description<textarea rows={3} maxLength={300} value={settings.seo_description} onChange={e => set('seo_description', e.target.value)} /></label><div className="form-two-col"><label>Logo URL<input type="url" value={settings.logo_url} onChange={e => set('logo_url', e.target.value)} placeholder="https://… (optional)" /></label><label>Favicon URL<input type="url" value={settings.favicon_url} onChange={e => set('favicon_url', e.target.value)} placeholder="https://… (optional)" /></label></div>
+  return <section className="admin-panel settings-panel"><div className="admin-panel-heading"><div><span className="section-kicker">SITE CONFIGURATION</span><h2>Brand, profile and homepage</h2><p>{loading ? 'Loading settings…' : 'These values are saved in the database.'}</p></div><Settings2 size={19} /></div><form id="site-settings-form" className="settings-form" onSubmit={save}><label>Site title<input required maxLength={140} value={settings.site_title} onChange={e => set('site_title', e.target.value)} /></label><label>SEO description<textarea rows={3} maxLength={300} value={settings.seo_description} onChange={e => set('seo_description', e.target.value)} /></label><div className="settings-image-grid"><ImageField label="Logo" value={settings.logo_url} onChange={url => set('logo_url', url)} help="Shown in the site header" /><ImageField label="Favicon" value={settings.favicon_url} onChange={url => set('favicon_url', url)} aspect={1} help="The little icon in the browser tab" /></div>
     <div className="form-two-col"><label>Website owner<input required maxLength={160} value={settings.owner_name} onChange={e => set('owner_name', e.target.value)} /></label><label>Copyright template<input maxLength={240} value={settings.copyright_text} onChange={e => set('copyright_text', e.target.value)} placeholder="© {year} {owner_name}. All rights reserved." /></label></div>
     <p className="settings-help-text">Use <code>{'{year}'}</code> for the current year and <code>{'{owner_name}'}</code> for the website owner. The public copyright automatically updates each year.</p>
+    <p className="copyright-preview">The public footer will show: <strong>{renderCopyright(settings)}</strong></p>
     <div className="form-two-col"><label>YouTube channel URL<input type="url" value={settings.youtube_url || ''} onChange={e => set('youtube_url', e.target.value)} placeholder="https://youtube.com/@… (optional)" /></label></div>
     <div className="site-copy-editor"><div><span className="section-kicker">PUBLIC WEBSITE WORDING</span><h3>Edit website text</h3><p>Edit the wording below using normal text fields. These settings control text in the homepage, navigation, About, Contact, Recommendations, and footer. Changes are published when you press Save site settings in the top header.</p></div>
       <div className="site-copy-fields">{Object.entries(settings.site_copy || {}).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => <label className="site-copy-field" key={key}><span>{key.split('.').map(part => part.replaceAll('_', ' ')).join(' / ')}</span>{/(heading|body|intro|description)/i.test(key) ? <textarea rows={2} aria-label={key} value={value} onChange={e => updateCopy(key, e.target.value)} /> : <input type="text" aria-label={key} value={value} onChange={e => updateCopy(key, e.target.value)} />}</label>)}</div>
@@ -1166,7 +1271,8 @@ function SiteSettingsPanel({ onMessage }: { onMessage: (message: string) => void
     <div className="homepage-section-controls"><div><span className="section-kicker">HOMEPAGE SECTIONS</span><p>Choose what appears on the public homepage. Move visible sections up or down to change their order.</p></div>
       {visibleSections.length ? visibleSections.map((key, index) => { const option = sectionOptions.find(section => section.key === key)!; return <div className="homepage-section-row" key={key}><div><strong>{index + 1}. {option.label}</strong><small>{option.help}</small></div><div className="homepage-section-actions"><button type="button" className="button button-outline button-small" disabled={index === 0} aria-label={`Move ${option.label} up`} onClick={() => moveSection(key, -1)}>Up</button><button type="button" className="button button-outline button-small" disabled={index === visibleSections.length - 1} aria-label={`Move ${option.label} down`} onClick={() => moveSection(key, 1)}>Down</button><button type="button" className="button button-outline button-small homepage-hide-button" onClick={() => toggleSection(key, false)}>Hide</button></div></div>; }) : <p className="homepage-sections-empty">All homepage sections are hidden. Add one below to show content to visitors.</p>}
       {hiddenSections.length > 0 && <div className="homepage-section-additions"><span className="section-kicker">HIDDEN SECTIONS</span>{hiddenSections.map(option => <button type="button" key={option.key} className="button button-outline button-small" onClick={() => toggleSection(option.key, true)}>Show {option.label}</button>)}</div>}
-    </div><div className="settings-theme"><div><strong>Primary blue</strong><span>#2563EB</span></div><div><strong>Accent yellow</strong><span>#FACC15</span></div><p>ALIB uses the established blue-and-yellow palette.</p></div></form></section>;
+    </div><div className="settings-theme"><div><strong>Primary blue</strong><span>#2563EB</span></div><div><strong>Accent yellow</strong><span>#FACC15</span></div><p>ALIB uses the established blue-and-yellow palette.</p></div>
+    <div className="settings-save-row"><span className="settings-save-hint">Changes are published to the public site as soon as you save.</span><button className="button button-primary" type="submit" disabled={saving || loading}>{saving ? 'Saving…' : 'Save site settings'} <Check size={15} /></button></div></form></section>;
 }
 
 function ContactInboxPanel({ onMessage }: { onMessage: (message: string) => void }) {

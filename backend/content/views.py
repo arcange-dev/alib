@@ -13,6 +13,7 @@ from django.core.mail import send_mail
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Max, OuterRef, Subquery
 from django.http import HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.utils.encoding import force_bytes, force_str
@@ -32,7 +33,7 @@ from rest_framework.views import APIView
 from .models import AnalyticsEvent, AuditEvent, Category, Collection, CollectionItem, ContactMessage, ContentComment, ContentItem, ContentRevision, ContentReaction, CreatorProfile, MediaAsset, NewsletterSubscriber, SiteSettings, StaffTwoFactor, Tag, VisitorSuggestion
 from .permissions import ADMIN_GROUP, EDITOR_GROUP, MODERATOR_GROUP, SUPPORT_GROUP, IsALIBAdministrator, IsALIBEditor, IsALIBModerator, IsALIBStaff, PublicReadAdminWrite, can_manage_content, can_moderate
 from .serializers import CategorySerializer, CollectionSerializer, ContentCommentSerializer, ContentItemSerializer, ContentRevisionSerializer, CreatorProfileSerializer, MediaAssetSerializer, SiteSettingsSerializer, TagSerializer, VisitorSuggestionSerializer
-from .storage import delete_object, signed_object_url, upload_object
+from .storage import delete_object, get_object, signed_object_url, upload_object
 from .two_factor import decrypt_secret, encrypt_secret, generate_secret, provisioning_uri, verify_code
 
 
@@ -557,7 +558,8 @@ class MediaUploadAPIView(APIView):
             alt_text=str(request.data.get('alt_text', ''))[:300],
             original_filename=PurePath(uploaded.name).name[:255], storage_path=object_key,
             mime_type=mime_type, file_size=uploaded.size,
-            visibility='private', downloadable=False, uploaded_by=request.user,
+            visibility='public' if str(request.data.get('visibility', '')) == 'public' else 'private',
+            downloadable=False, uploaded_by=request.user,
         )
         AuditEvent.objects.create(actor=request.user, action='media.uploaded', object_type='MediaAsset', object_id=str(asset.pk), details={'mime_type': mime_type, 'file_size': asset.file_size})
         return Response(MediaAssetSerializer(asset).data, status=status.HTTP_201_CREATED)
@@ -565,6 +567,21 @@ class MediaUploadAPIView(APIView):
 
 
 
+
+
+class MediaImageAPIView(APIView):
+    """Serves a stable public URL for image assets so avatars, logos, favicons,
+    and cover images can reference media without short-lived signed URLs."""
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    def get(self, request, asset_id):
+        asset = get_object_or_404(MediaAsset, pk=asset_id)
+        if asset.visibility != 'public' or not asset.mime_type.startswith('image/'):
+            return Response({'detail': 'This image is not published.'}, status=status.HTTP_404_NOT_FOUND)
+        data = get_object(asset.storage_path)
+        response = HttpResponse(data, content_type=asset.mime_type)
+        response['Cache-Control'] = 'public, max-age=86400'
+        return response
 
 
 class ContentReactionAPIView(APIView):
@@ -653,7 +670,9 @@ class PublicSiteSettingsAPIView(APIView):
     def get(self, request):
         obj = SiteSettings.objects.order_by('id').first()
         if obj:
-            return Response(SiteSettingsSerializer(obj).data)
+            response = Response(SiteSettingsSerializer(obj).data)
+            response['Cache-Control'] = 'no-store'
+            return response
         return Response({'site_title': 'ALIB — Digital Home', 'logo_url': '', 'favicon_url': '', 'seo_description': 'A considered home for ideas, work, and curiosity.', 'homepage_sections': ['featured', 'latest', 'categories', 'collections'], 'theme_preferences': {'primary': '#2563eb', 'secondary': '#facc15'}, 'owner_name': 'Mukamyi Izere Arcange', 'copyright_text': '© {year} {owner_name}. All rights reserved.', 'site_copy': {"nav.home":"Home","nav.discover":"Discover","nav.writing":"Writing","nav.favorites":"Favorites","nav.projects":"Projects","nav.resources":"Resources","nav.collections":"Collections","nav.about":"About","nav.contact":"Contact","nav.recommend":"Recommend","home.hero.eyebrow":"A PERSONAL DIGITAL SPACE","home.hero.intro":"A personal library of projects, thoughtful notes, useful links, and the digital things that make you curious.","home.intro.heading":"Not just a portfolio.\nA place to wander.","home.intro.body":"Some things deserve more than a bookmark. ALIB brings together the work being made, the ideas being explored, and the resources worth passing along — all in one thoughtful, searchable place.","home.featured.eyebrow":"THE HIGHLIGHTS / 02","home.featured.title":"Worth a closer look","home.latest.eyebrow":"RECENTLY ADDED / 03","home.latest.title":"Fresh from the archive","home.pathways.eyebrow":"FIND YOUR WAY / 04","home.pathways.title":"Different paths in.","home.pathway.read.title":"Read & reflect","home.pathway.read.body":"Essays, notes, and things learned along the way.","home.pathway.save.title":"Save a little wonder","home.pathway.save.body":"Websites and digital tools worth remembering.","home.pathway.build.title":"See what's being built","home.pathway.build.body":"Experiments, side projects, and work in progress.","home.pathway.learn.title":"Keep learning","home.pathway.learn.body":"Books, references, documents, and useful media.","about.eyebrow":"ABOUT THIS SPACE","about.title":"One place.\nMany curiosities.","contact.eyebrow":"OPEN CHANNEL","contact.title":"Say hello.","contact.intro":"Questions, ideas, or a useful thing to add to the archive are all welcome.","suggest.eyebrow":"COMMUNITY / RECOMMENDATIONS","suggest.title":"Found something good?","suggest.intro":"Recommend a website, video, book, project, or resource that deserves a spot in the archive.","privacy.eyebrow":"PLAIN-LANGUAGE NOTICE","privacy.title":"Privacy.","footer.description":"A small home for a growing digital world.","footer.newsletter_label":"Occasional notes from the archive"}})
 
 
