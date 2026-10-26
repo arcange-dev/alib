@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command, CommandError
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework.test import APIClient
 from .models import ContentItem, MediaAsset
@@ -67,6 +67,10 @@ class PublicContentTests(TestCase):
 
 
 class SessionAuthenticationTests(TestCase):
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+
     def setUp(self):
         self.client = APIClient()
 
@@ -192,3 +196,53 @@ class MediaAssetAdminTests(TestCase):
         self.assertEqual(client.patch(f'/api/v1/admin/media/{asset.pk}/', {'title': 'Nope'}, format='json').status_code, 403)
         self.assertEqual(client.delete(f'/api/v1/admin/media/{asset.pk}/').status_code, 403)
         self.assertTrue(MediaAsset.objects.filter(pk=asset.pk).exists())
+
+
+class LoginLockoutTests(TestCase):
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+
+    def _staff_user(self, username='lockadmin', password='A-Safe-Passw0rd-2026'):
+        from django.contrib.auth import get_user_model
+        return get_user_model().objects.create_user(username=username, email=f'{username}@example.com', password=password, is_staff=True)
+
+    def test_account_locks_after_five_failed_logins(self):
+        user = self._staff_user()
+        for _ in range(4):
+            response = self.client.post('/api/v1/auth/login/', {'username': user.username, 'password': 'wrong-pass'}, content_type='application/json')
+            self.assertEqual(response.status_code, 400)
+        response = self.client.post('/api/v1/auth/login/', {'username': user.username, 'password': 'wrong-pass'}, content_type='application/json')
+        self.assertEqual(response.status_code, 429)
+        self.assertIn('Too many failed attempts', response.data['detail'])
+
+    def test_locked_account_rejects_correct_password(self):
+        user = self._staff_user()
+        for _ in range(5):
+            self.client.post('/api/v1/auth/login/', {'username': user.username, 'password': 'wrong-pass'}, content_type='application/json')
+        response = self.client.post('/api/v1/auth/login/', {'username': user.username, 'password': 'A-Safe-Passw0rd-2026'}, content_type='application/json')
+        self.assertEqual(response.status_code, 429)
+
+    def test_successful_login_resets_failure_counter(self):
+        user = self._staff_user()
+        for _ in range(4):
+            self.client.post('/api/v1/auth/login/', {'username': user.username, 'password': 'wrong-pass'}, content_type='application/json')
+        response = self.client.post('/api/v1/auth/login/', {'username': user.username, 'password': 'A-Safe-Passw0rd-2026'}, content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        from content.models import LoginAttempt
+        self.assertFalse(LoginAttempt.objects.filter(username=user.username.lower()).exists())
+        from content.models import AuditEvent
+        self.assertTrue(AuditEvent.objects.filter(action='auth.login', object_id=str(user.pk)).exists())
+        self.assertTrue(AuditEvent.objects.filter(action='auth.login_failed').exists())
+
+    def test_require_2fa_flag_blocks_staff_without_2fa(self):
+        user = self._staff_user()
+        with override_settings(ALIB_REQUIRE_2FA=True):
+            response = self.client.post('/api/v1/auth/login/', {'username': user.username, 'password': 'A-Safe-Passw0rd-2026'}, content_type='application/json')
+        self.assertEqual(response.status_code, 403)
+        self.assertIn('Two-factor authentication is required', response.data['detail'])
+
+    def test_csp_header_present_on_public_pages(self):
+        response = self.client.get('/')
+        self.assertIn('Content-Security-Policy', response.headers)
+        self.assertIn("default-src 'self'", response.headers['Content-Security-Policy'])

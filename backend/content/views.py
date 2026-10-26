@@ -30,7 +30,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle, ScopedRateThrottle
 from rest_framework.views import APIView
-from .models import AnalyticsEvent, AuditEvent, Category, Collection, CollectionItem, ContactMessage, ContentComment, ContentItem, ContentRevision, ContentReaction, CreatorProfile, MediaAsset, NewsletterSubscriber, SiteSettings, StaffTwoFactor, Tag, VisitorSuggestion
+from .models import AnalyticsEvent, AuditEvent, Category, Collection, CollectionItem, ContactMessage, ContentComment, ContentItem, ContentRevision, ContentReaction, CreatorProfile, MediaAsset, NewsletterSubscriber, SiteSettings, StaffTwoFactor, Tag, VisitorSuggestion, login_lockout, record_login_failure, record_login_success
 from .permissions import ADMIN_GROUP, EDITOR_GROUP, MODERATOR_GROUP, SUPPORT_GROUP, IsALIBAdministrator, IsALIBEditor, IsALIBModerator, IsALIBStaff, PublicReadAdminWrite, can_manage_content, can_moderate
 from .serializers import CategorySerializer, CollectionSerializer, ContentCommentSerializer, ContentItemSerializer, ContentRevisionSerializer, CreatorProfileSerializer, MediaAssetSerializer, SiteSettingsSerializer, TagSerializer, VisitorSuggestionSerializer
 from .storage import delete_object, get_object, signed_object_url, upload_object
@@ -301,14 +301,27 @@ class LoginAPIView(APIView):
         password = request.data.get('password', '')
         if not username or not isinstance(password, str) or not password:
             return Response({'detail': 'Enter your username and password.'}, status=status.HTTP_400_BAD_REQUEST)
+        locked, seconds = login_lockout(username)
+        if locked:
+            AuditEvent.objects.create(actor=None, action='auth.login_locked', details={'username': username[:150], 'retry_in_seconds': int(seconds)})
+            return Response({'detail': f'Too many failed attempts. Try again in about {max(int(seconds // 60), 1)} minute(s).'}, status=status.HTTP_429_TOO_MANY_REQUESTS)
         user = authenticate(request, username=username, password=password)
         if user is None or not user.is_active or not user.is_staff:
+            now_locked = record_login_failure(username)
+            AuditEvent.objects.create(actor=None, action='auth.login_failed', details={'username': username[:150], 'ip': request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', '')).split(',')[0].strip()[:45], 'locked_now': now_locked})
+            if now_locked:
+                return Response({'detail': 'Too many failed attempts. Try again in about 15 minutes.'}, status=status.HTTP_429_TOO_MANY_REQUESTS)
             return Response({'detail': 'The sign-in details were not accepted.'}, status=status.HTTP_400_BAD_REQUEST)
         state = StaffTwoFactor.objects.filter(user=user, enabled=True).first()
+        if not state and getattr(settings, 'ALIB_REQUIRE_2FA', False):
+            AuditEvent.objects.create(actor=None, action='auth.login_blocked_no_2fa', details={'username': username[:150]})
+            return Response({'detail': 'Two-factor authentication is required for Creator Studio. It must be enabled for this account before signing in.'}, status=status.HTTP_403_FORBIDDEN)
         if state:
             challenge = signing.dumps({'user_id': user.pk, 'purpose': 'staff-login'}, salt='alib-staff-2fa-login')
             return Response({'detail': 'Password accepted. Enter your authenticator code.', 'requires_two_factor': True, 'challenge': challenge})
         login(request, user)
+        record_login_success(username)
+        AuditEvent.objects.create(actor=user, action='auth.login', object_type='User', object_id=str(user.pk))
         return Response({'detail': 'Signed in.', 'user': {'id': user.pk, 'username': user.get_username(), 'email': user.email, 'is_staff': user.is_staff, 'is_superuser': user.is_superuser, 'role': _team_member_payload(user)['role']}})
 
 
@@ -379,15 +392,24 @@ class TwoFactorLoginVerifyAPIView(APIView):
             user = get_user_model().objects.get(pk=payload.get('user_id'), is_active=True, is_staff=True)
         except (signing.BadSignature, signing.SignatureExpired, get_user_model().DoesNotExist, TypeError, ValueError):
             return Response({'detail': 'This sign-in challenge has expired. Enter your password again.'}, status=status.HTTP_400_BAD_REQUEST)
+        locked, seconds = login_lockout(user.get_username())
+        if locked:
+            AuditEvent.objects.create(actor=None, action='auth.login_locked', details={'username': user.get_username()[:150], 'stage': 'two_factor', 'retry_in_seconds': int(seconds)})
+            return Response({'detail': f'Too many failed attempts. Try again in about {max(int(seconds // 60), 1)} minute(s).'}, status=status.HTTP_429_TOO_MANY_REQUESTS)
         with transaction.atomic():
             state = StaffTwoFactor.objects.select_for_update().filter(user=user, enabled=True).first()
             if state is None or not state.secret_encrypted:
                 return Response({'detail': 'Two-factor authentication is not configured. Sign in again.'}, status=status.HTTP_400_BAD_REQUEST)
             step = verify_code(decrypt_secret(state.secret_encrypted), code)
             if step is None or step <= state.last_verified_step:
+                now_locked = record_login_failure(user.get_username())
+                AuditEvent.objects.create(actor=None, action='auth.login_failed', details={'username': user.get_username()[:150], 'stage': 'two_factor', 'locked_now': now_locked})
+                if now_locked:
+                    return Response({'detail': 'Too many failed attempts. Try again in about 15 minutes.'}, status=status.HTTP_429_TOO_MANY_REQUESTS)
                 return Response({'detail': 'The authenticator code was not accepted or has already been used.'}, status=status.HTTP_400_BAD_REQUEST)
             state.last_verified_step = step
             state.save(update_fields=['last_verified_step', 'updated_at'])
+        record_login_success(user.get_username())
         login(request, user)
         AuditEvent.objects.create(actor=user, action='auth.2fa_login', object_type='User', object_id=str(user.pk))
         return Response({'detail': 'Signed in.', 'user': {'id': user.pk, 'username': user.get_username(), 'email': user.email, 'is_staff': user.is_staff, 'is_superuser': user.is_superuser, 'role': _team_member_payload(user)['role']}})

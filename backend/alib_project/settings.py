@@ -43,6 +43,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+    'alib_project.middleware.ContentSecurityPolicyMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 ROOT_URLCONF = 'alib_project.urls'
@@ -90,6 +91,8 @@ CORS_ALLOW_HEADERS = [
     'accept', 'authorization', 'content-type', 'origin', 'user-agent', 'x-csrftoken', 'x-requested-with',
 ]
 SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_AGE = int(os.environ.get('ALIB_SESSION_COOKIE_AGE', str(60 * 60 * 12)))
+SESSION_EXPIRE_AT_BROWSER_CLOSE = env_bool('ALIB_SESSION_EXPIRE_ON_CLOSE', True)
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_SAMESITE = 'Lax'
@@ -139,5 +142,6 @@ EMAIL_USE_SSL = env_bool('EMAIL_USE_SSL', False)
 EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '10'))
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'webmaster@localhost')
 ALIB_SCHEDULER_TOKEN = os.environ.get('ALIB_SCHEDULER_TOKEN', '').strip()
+ALIB_REQUIRE_2FA = env_bool('ALIB_REQUIRE_2FA', False)
 ALIB_CONTACT_NOTIFICATION_EMAIL = os.environ.get('ALIB_CONTACT_NOTIFICATION_EMAIL', '').strip()
 

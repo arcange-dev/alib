@@ -2,7 +2,54 @@ from uuid import uuid4
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
+from datetime import timedelta
+from django.utils import timezone
 from django.utils.text import slugify
+
+# --- Creator studio login hardening -----------------------------------------
+
+LOGIN_FAILURE_LIMIT = 5
+LOGIN_LOCKOUT_MINUTES = 15
+
+
+def _lockout_deadline(attempt):
+    return attempt.locked_until + timedelta(seconds=1) if attempt.locked_until else None
+
+
+def login_lockout(username):
+    """Return (locked, seconds_remaining) for the account's failed-login state."""
+    key = str(username).strip().lower()[:150]
+    attempt = LoginAttempt.objects.filter(username=key).first()
+    if attempt is None or attempt.locked_until is None:
+        return False, 0
+    remaining = (attempt.locked_until - timezone.now()).total_seconds()
+    if remaining <= 0:
+        attempt.locked_until = None
+        attempt.failed_count = 0
+        attempt.save(update_fields=['locked_until', 'failed_count'])
+        return False, 0
+    return True, max(remaining, 1)
+
+
+def record_login_failure(username):
+    key = str(username).strip().lower()[:150]
+    attempt, _ = LoginAttempt.objects.get_or_create(username=key)
+    attempt.failed_count += 1
+    attempt.last_attempt_at = timezone.now()
+    if attempt.failed_count >= LOGIN_FAILURE_LIMIT:
+        attempt.locked_until = timezone.now() + timedelta(minutes=LOGIN_LOCKOUT_MINUTES)
+        attempt.failed_count = 0
+        locked = True
+    else:
+        locked = False
+    attempt.save(update_fields=['failed_count', 'locked_until', 'last_attempt_at'])
+    return locked
+
+
+def record_login_success(username):
+    key = str(username).strip().lower()[:150]
+    LoginAttempt.objects.filter(username=key).delete()
+
 
 class TimestampedModel(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
@@ -238,6 +285,16 @@ class StaffTwoFactor(models.Model):
 
     def __str__(self):
         return f'Two-factor for user {self.user_id}'
+
+
+class LoginAttempt(models.Model):
+    """Tracks failed creator-studio sign-ins so accounts can be temporarily locked."""
+    username = models.CharField(max_length=150, unique=True, db_index=True)
+    failed_count = models.PositiveIntegerField(default=0)
+    locked_until = models.DateTimeField(null=True, blank=True)
+    last_attempt_at = models.DateTimeField(null=True, blank=True)
+    class Meta: ordering = ['-last_attempt_at']
+    def __str__(self): return f'{self.username} (failed {self.failed_count})'
 
 
 class AuditEvent(models.Model):
