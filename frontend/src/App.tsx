@@ -1,5 +1,5 @@
-import { createContext, Fragment, useContext, useDeferredValue, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { Link, NavLink, Route, Routes, useLocation, useParams, useSearchParams } from 'react-router-dom';
+import { createContext, Fragment, useContext, useDeferredValue, useEffect, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { Link, NavLink, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowDown, ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, Bookmark, Check, ChevronDown, CircleHelp, Clock3, Command,
   Compass, ExternalLink, FileText, Filter, FolderOpen, Globe2, Heart, History, Inbox, Layers3, Link2, LockKeyhole, ChevronLeft, ChevronRight,
@@ -51,7 +51,20 @@ function App() {
   const [dark, setDark] = useState(() => safeStorageGet('alib-theme') === 'dark');
   const [mobileNav, setMobileNav] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
   const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target && (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable)) return;
+      event.preventDefault();
+      if (location.pathname !== '/discover') navigate('/discover');
+      window.setTimeout(() => document.querySelector<HTMLInputElement>('.search-field input')?.focus(), 80);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [location.pathname, navigate]);
   useEffect(() => {
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
     safeStorageSet('alib-theme', dark ? 'dark' : 'light');
@@ -473,6 +486,32 @@ function ContentDetailPage() {
   const [commentBody, setCommentBody] = useState('');
   const [commentMessage, setCommentMessage] = useState('');
   const [commentBusy, setCommentBusy] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [lightbox, setLightbox] = useState('');
+  useEffect(() => {
+    const onScroll = () => {
+      const article = document.querySelector<HTMLElement>('.detail-page');
+      if (!article) return;
+      const top = article.offsetTop;
+      const max = article.offsetHeight - window.innerHeight;
+      setProgress(max > 0 ? Math.min(Math.max((window.scrollY - top) / max, 0), 1) : 0);
+    };
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    return () => { window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', onScroll); };
+  }, [item?.id]);
+  useEffect(() => {
+    if (!lightbox) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setLightbox(''); };
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKey);
+    return () => { document.body.style.overflow = ''; window.removeEventListener('keydown', onKey); };
+  }, [lightbox]);
+  const openLightbox = (event: ReactMouseEvent<HTMLElement>) => {
+    const target = event.target as HTMLElement;
+    if (target.tagName === 'IMG') setLightbox((target as HTMLImageElement).src);
+  };
   useEffect(() => {
     setLoading(true); setError(''); setItem(null);
     api.contentDetail(slug).then(setItem).catch(e => setError(e instanceof Error ? e.message : 'This item is unavailable.')).finally(() => setLoading(false));
@@ -550,7 +589,8 @@ function ContentDetailPage() {
   if (loading) return <div className="page-wrap section-wrap detail-loading"><LoadingRows /></div>;
   if (!item) return <div className="page-wrap section-wrap"><EmptyState title="We couldn’t find that item." body={error || 'It may be private, unpublished, or have a different address.'} action={<Link to="/discover" className="button button-outline"><ArrowLeft size={15} /> Back to discovery</Link>} /></div>;
   const cover = item.cover_image_url;
-  return <article className="detail-page section-wrap page-enter">
+  return <article className="detail-page section-wrap page-enter" onClick={openLightbox}>
+    <div className="reading-progress" aria-hidden="true" style={{ width: `${progress * 100}%` }} />
     <Link className="back-link" to="/discover"><ArrowLeft size={15} /> Back to discovery</Link>
     <header className="detail-header">
       <div className="eyebrow">{labelType(item.content_type).toUpperCase()} / ENTRY <span className="eyebrow-rule" /></div>
@@ -579,6 +619,7 @@ function ContentDetailPage() {
       </div>
     </section>
     {related.length > 0 && <section className="related-section"><SectionHeading kicker="CONTINUE EXPLORING" title="Related from the archive" linkTo="/discover" linkLabel="Browse all" /><ContentGrid items={related} compact /></section>}
+    {lightbox && <div className="lightbox" role="dialog" aria-label="Image preview" onClick={() => setLightbox('')}><img src={lightbox} alt="" /><button type="button" className="icon-button lightbox-close" aria-label="Close preview" onClick={() => setLightbox('')}><X size={18} /></button></div>}
   </article>;
 }
 
