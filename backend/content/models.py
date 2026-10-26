@@ -28,6 +28,7 @@ class SiteSettings(TimestampedModel):
     theme_preferences = models.JSONField(default=dict, blank=True)
     owner_name = models.CharField(max_length=160, default='Mukamyi Izere Arcange')
     copyright_text = models.CharField(max_length=240, default='© {year} {owner_name}. All rights reserved.')
+    youtube_url = models.URLField(blank=True)
     site_copy = models.JSONField(default=dict, blank=True)
     def __str__(self): return self.site_title
 
