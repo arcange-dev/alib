@@ -37,3 +37,5 @@ services:
         value: "true"
       - key: TIME_ZONE
         value: Africa/Kigali
+      - key: ALIB_SCHEDULER_TOKEN
+        sync: false
