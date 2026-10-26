@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import App from './App';
 
@@ -62,17 +62,24 @@ describe('Creator Studio navigation', () => {
     expect(window.localStorage.getItem('alib-studio-sidebar-mode')).toBe('full');
 
     // Workspace sections use a consistent top header with context-specific actions.
-    fireEvent.click(screen.getByRole('button', { name: 'Collections' }));
+    // The sidebar panel and the header nav both list the sections, so scope the
+    // section clicks to the sidebar and assert the header nav separately.
+    const sidebarNav = within(sidebar as HTMLElement);
+    const headerNav = document.querySelector('.admin-header-nav');
+    expect(headerNav).not.toBeNull();
+    expect(within(headerNav as HTMLElement).getAllByRole('button').map(button => button.textContent)).toEqual(
+      ['Collections', 'Creator profile', 'Site settings', 'Contact inbox', 'Analytics', 'Suggestions', 'Comments', 'Team access', 'Audit history', 'Newsletter']);
+    fireEvent.click(sidebarNav.getByRole('button', { name: 'Collections' }));
     await waitFor(() => expect(screen.getByTestId('admin-section-title').textContent).toBe('Collections'));
     expect(document.querySelector('.admin-header-description')?.textContent).toContain('chosen order');
     expect(await screen.findByRole('button', { name: 'Refresh Collections' })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Creator profile' }));
+    fireEvent.click(sidebarNav.getByRole('button', { name: 'Creator profile' }));
     await waitFor(() => expect(screen.getByTestId('admin-section-title').textContent).toBe('Creator profile'));
     expect(await screen.findByRole('button', { name: 'Refresh Creator profile' })).toBeTruthy();
     expect(await screen.findByRole('button', { name: 'Save profile' })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Site settings' }));
+    fireEvent.click(sidebarNav.getByRole('button', { name: 'Site settings' }));
     await waitFor(() => expect(screen.getByTestId('admin-section-title').textContent).toBe('Site settings'));
     expect((await screen.findByLabelText('Website owner') as HTMLInputElement).value).toBe('Mukamyi Izere Arcange');
     expect((await screen.findByLabelText('Copyright template') as HTMLInputElement).value).toContain('{year}');
