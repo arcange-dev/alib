@@ -145,7 +145,7 @@ export interface SiteSettings { site_title: string; logo_url: string; favicon_ur
 export interface ContentRevision { id: number; revision_number: number; snapshot: Record<string, unknown>; editor_username: string; created_at: string; }
 export interface ContentComment { id: number; item_id?: number; name: string; email?: string; body: string; status: 'pending' | 'approved' | 'rejected'; created_at: string; }
 export interface ContactInboxItem { id: number; name: string; email: string; message: string; reviewed: boolean; archived: boolean; created_at: string; }
-export interface AnalyticsSummary { period_days: number; page_views: number; outbound_clicks: number; searches: number; unique_daily_visitors_approx: number; popular_paths: { path: string; views: number }[]; daily_page_views: { day: string; views: number }[]; }
+export interface AnalyticsSummary { period_days: number; page_views: number; outbound_clicks: number; searches: number; unique_daily_visitors_approx: number; popular_paths: { path: string; views: number }[]; daily_page_views: { day: string; views: number }[]; top_viewed: { title: string; slug: string; content_type: string; view_count: number }[]; }
 
 export interface AuditEventItem { id: number; actor: string; action: string; object_type: string; object_id: string; details: Record<string, unknown>; created_at: string; }
 export interface NewsletterSubscriberItem { id: number; email: string; is_active: boolean; confirmed_at: string | null; created_at: string; }

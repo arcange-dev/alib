@@ -35,6 +35,32 @@ class PublicContentTests(TestCase):
         self.assertEqual(response.data['slug'], 'first-published-item')
         self.assertIsNotNone(response.data['published_at'])
 
+    def test_public_detail_increments_view_count_and_reports_read_time(self):
+        response = self.client.get('/api/v1/content/by-slug/public-note/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['view_count'], 1)
+        self.assertEqual(response.data['read_minutes'], 0)
+        ContentItem.objects.filter(slug='public-note').update(body='word ' * 450)
+        response = self.client.get('/api/v1/content/by-slug/public-note/')
+        self.assertEqual(response.data['view_count'], 2)
+        self.assertEqual(response.data['read_minutes'], 3)
+        self.assertEqual(ContentItem.objects.get(slug='public-note').view_count, 2)
+
+    def test_staff_detail_does_not_increment_view_count(self):
+        user = get_user_model().objects.create_user(username='staffer', password='Sufficiently-long-pass-123!', is_staff=True)
+        self.client.force_authenticate(user=user)
+        self.client.get('/api/v1/content/by-slug/public-note/')
+        self.assertEqual(ContentItem.objects.get(slug='public-note').view_count, 0)
+
+    def test_analytics_includes_top_viewed_items(self):
+        user = get_user_model().objects.create_user(username='adminviewer', password='Sufficiently-long-pass-123!', is_staff=True)
+        ContentItem.objects.filter(slug='public-note').update(view_count=7)
+        self.client.force_authenticate(user=user)
+        response = self.client.get('/api/v1/admin/analytics/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['top_viewed'][0]['title'], 'Public note')
+        self.assertEqual(response.data['top_viewed'][0]['view_count'], 7)
+
     def test_private_detail_is_not_found_for_anonymous(self):
         response = self.client.get('/api/v1/content/by-slug/private-draft/')
         self.assertEqual(response.status_code, 404)

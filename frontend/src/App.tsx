@@ -3,7 +3,7 @@ import { Link, NavLink, Route, Routes, useLocation, useParams, useSearchParams }
 import {
   ArrowDown, ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, Bookmark, Check, ChevronDown, CircleHelp, Clock3, Command,
   Compass, ExternalLink, FileText, Filter, FolderOpen, Globe2, Heart, History, Inbox, Layers3, Link2, LockKeyhole, ChevronLeft, ChevronRight,
-  LogOut, Mail, Menu, MessageCircle, Moon, PenLine, Plus, Search, Share2, ShieldCheck, Sparkles, Sun, ThumbsUp, Trash2, Upload, Video, X, BarChart3, Settings2, Users, UserRound, ClipboardList, AtSign, ChevronsLeft, Crop, ImagePlus,
+  LogOut, Mail, Menu, MessageCircle, Moon, PenLine, Plus, Search, Share2, ShieldCheck, Sparkles, Sun, ThumbsUp, Trash2, Upload, Video, X, BarChart3, Settings2, Users, UserRound, ClipboardList, AtSign, ChevronsLeft, Crop, ImagePlus, CalendarDays, Eye,
 } from 'lucide-react';
 import { api, type AdminStats, type AdminUser, type AnalyticsSummary, type AuditEventItem, type ContactInboxItem, type ContentComment, type ContentRevision, type NewsletterSubscriberItem, type SiteSettings, type TeamMember, type TeamRole, type TwoFactorStatus } from './api';
 import type { Category, Collection, ContentItem, ContentType, CreatorProfile, HomePayload, MediaAsset, Tag } from './types';
@@ -287,7 +287,7 @@ function ContentCard({ item, index }: { item: ContentItem; index: number }) {
       <span className="card-type">{labelType(item.content_type)}</span><span className="card-open"><ArrowUpRight size={18} /></span>
     </Link>
     <BookmarkButton itemId={item.id} compact />
-    <div className="card-content"><div className="card-meta"><span>{item.category?.name || labelType(item.content_type)}</span><span className="meta-separator">/</span><span>{formatDate(item.published_at || item.created_at)}</span></div>
+    <div className="card-content"><div className="card-meta"><span>{item.category?.name || labelType(item.content_type)}</span><span className="meta-separator">/</span><span>{formatDate(item.published_at || item.created_at)}</span>{item.read_minutes > 0 && <><span className="meta-separator">/</span><span>{item.read_minutes} min read</span></>}</div>
       <h3><Link to={item.content_type === 'article' || item.content_type === 'note' ? `/posts/${item.slug}` : item.content_type === 'project' ? `/projects/${item.slug}` : `/content/${item.slug}`}>{item.title}</Link></h3>
       <p>{item.summary || 'Open this item to explore more.'}</p>
       {item.tags.length > 0 && <div className="tag-row">{item.tags.slice(0, 3).map(tag => <span key={tag.id}>#{tag.name}</span>)}</div>}
@@ -555,7 +555,7 @@ function ContentDetailPage() {
     <header className="detail-header">
       <div className="eyebrow">{labelType(item.content_type).toUpperCase()} / ENTRY <span className="eyebrow-rule" /></div>
       <h1>{item.title}</h1><p className="detail-summary">{item.summary}</p>
-      <div className="detail-byline"><span>{item.category?.name || 'ALIB archive'}</span><span>·</span><span>{formatDate(item.published_at || item.created_at)}</span><span>·</span><button className="inline-action" onClick={copyLink}>{copied ? <Check size={14} /> : <Link2 size={14} />}{copied ? 'Copied link' : 'Copy link'}</button></div>
+      <div className="detail-byline"><span>{item.category?.name || 'ALIB archive'}</span><span>·</span><span>{formatDate(item.published_at || item.created_at)}</span><span>·</span><span>{item.read_minutes > 0 ? `${item.read_minutes} min read` : 'Quick view'}</span><span>·</span><span className="detail-views"><Eye size={13} /> {item.view_count} {item.view_count === 1 ? 'view' : 'views'}</span><span>·</span><button className="inline-action" onClick={copyLink}>{copied ? <Check size={14} /> : <Link2 size={14} />}{copied ? 'Copied link' : 'Copy link'}</button></div>
       <div className="detail-actions"><BookmarkButton itemId={item.id} /><button className="button button-outline button-small" onClick={() => void shareItem()}><Share2 size={15} /> Share</button></div>
     </header>
     {cover ? <img className="detail-cover" src={cover} alt="" /> : <div className="detail-cover detail-cover-fallback"><DefaultCover type={item.content_type} title={item.title} /></div>}
@@ -855,7 +855,7 @@ function MediaThumbnail({ asset }: { asset: MediaAsset }) {
 }
 
 function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => void }) {
-  const [tab, setTab] = useState<'overview' | 'content' | 'editor' | 'media' | 'settings' | 'profile' | 'collections' | 'inbox' | 'analytics' | 'moderation' | 'comments' | 'team' | 'audit' | 'newsletter' | 'security'>('overview');
+  const [tab, setTab] = useState<'overview' | 'content' | 'calendar' | 'editor' | 'media' | 'settings' | 'profile' | 'collections' | 'inbox' | 'analytics' | 'moderation' | 'comments' | 'team' | 'audit' | 'newsletter' | 'security'>('overview');
   type SidebarMode = 'full' | 'small' | 'hidden';
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>(() => {
     const saved = safeStorageGet('alib-studio-sidebar-mode');
@@ -874,6 +874,7 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
     overview: { title: 'Overview', description: 'Your archive at a glance and quick actions.' },
     security: { title: 'Account security', description: 'Manage your sign-in protection and authenticator.' },
     content: { title: 'All content', description: 'Create, organize, preview, and publish your entries.' },
+    calendar: { title: 'Content calendar', description: 'See what is published, scheduled, or drafted across the month.' },
     editor: { title: editId ? 'Edit content' : 'New content', description: 'Write an entry, save a draft, or publish it to your site.' },
     media: { title: 'Media library', description: 'Manage uploads, descriptions, visibility, and downloads.' },
     settings: { title: 'Site settings', description: 'Control website wording, branding, owner details, and copyright.' },
@@ -975,6 +976,7 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
       <button title="Overview" className={tab === 'overview' ? 'selected' : ''} onClick={() => setTab('overview')}><Compass size={17} /> Overview</button>
       <button title="Account security" className={tab === 'security' ? 'selected' : ''} onClick={() => setTab('security')}><ShieldCheck size={17} /> Account security</button>
       {canManage && <button title="All content" className={tab === 'content' ? 'selected' : ''} onClick={() => setTab('content')}><FileText size={17} /> All content <span className="nav-count">{items.length}</span></button>}
+      {canManage && <button title="Content calendar" className={tab === 'calendar' ? 'selected' : ''} onClick={() => setTab('calendar')}><CalendarDays size={17} /> Calendar</button>}
       {canManage && <button title="New content" className={tab === 'editor' ? 'selected' : ''} onClick={newItem}><Plus size={17} /> New content</button>}
       {canManage && <button title="Media library" className={tab === 'media' ? 'selected' : ''} onClick={() => { setTab('media'); void loadMedia(); }}><FolderOpen size={17} /> Media library</button>}
       {canManage && <button title="Collections" className={tab === 'collections' ? 'selected' : ''} onClick={() => setTab('collections')}><Layers3 size={17} /> Collections</button>}
@@ -1000,6 +1002,7 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
   {['inbox', 'analytics', 'moderation', 'comments', 'audit', 'team', 'newsletter', 'collections', 'media', 'profile', 'settings'].includes(tab) && <button aria-label={`Refresh ${headerMeta[tab]?.title || 'section'}`} className="button button-outline button-small" onClick={refreshActivePanel}><Clock3 size={15} /> Refresh</button>}</div>
       <nav className="admin-header-nav" aria-label="Workspace sections">
         {canManage && <button type="button" className={tab === 'collections' ? 'active' : ''} onClick={() => setTab('collections')}>Collections</button>}
+        {canManage && <button type="button" className={tab === 'calendar' ? 'active' : ''} onClick={() => setTab('calendar')}>Calendar</button>}
         {canManage && <button type="button" className={tab === 'profile' ? 'active' : ''} onClick={() => setTab('profile')}>Creator profile</button>}
         {isAdmin && <button type="button" className={tab === 'settings' ? 'active' : ''} onClick={() => setTab('settings')}>Site settings</button>}
         {canModerate && <button type="button" className={tab === 'inbox' ? 'active' : ''} onClick={() => setTab('inbox')}>Contact inbox</button>}
@@ -1012,6 +1015,7 @@ function AdminShell({ user, onSignOut }: { user: AdminUser; onSignOut: () => voi
       </nav></header>
       <div className="admin-content-area">{message && <div className={message.toLowerCase().includes('could not') || message.toLowerCase().includes('unable') ? 'error-message' : 'success-message'} role="status">{message}<button onClick={() => setMessage('')} aria-label="Dismiss message"><X size={15} /></button></div>}
       {tab === 'overview' && <><div className="admin-welcome"><div><span className="section-kicker">YOUR DIGITAL HOME</span><h1>Good to see you, {user.username}.</h1><p>Here’s what’s happening in your archive.</p></div><button className="button button-outline" onClick={() => void reload()} disabled={busy}>{busy ? 'Refreshing…' : 'Refresh data'} <Clock3 size={15} /></button></div><div className="admin-stat-grid"><AdminStat icon={<FileText size={18} />} label="Published" value={stats?.published ?? '—'} hint="Visible to visitors" /><AdminStat icon={<PenLine size={18} />} label="Drafts" value={stats?.drafts ?? '—'} hint="Still in the studio" /><AdminStat icon={<Clock3 size={18} />} label="Scheduled" value={stats?.scheduled ?? '—'} hint="Waiting to publish" /><AdminStat icon={<FolderOpen size={18} />} label="Media assets" value={stats?.assets ?? '—'} hint="Stored asset records" /></div><div className="admin-overview-grid"><section className="admin-panel recent-content-panel"><div className="admin-panel-heading"><div><span className="section-kicker">THE ARCHIVE</span><h2>Recent content</h2></div><button className="text-link" onClick={() => setTab('content')}>View all <ArrowRight size={15} /></button></div>{items.slice(0, 5).length ? <div className="admin-recent-list">{items.slice(0, 5).map(item => <div key={item.id} className="admin-recent-row"><div className="admin-recent-icon"><FileText size={17} /></div><div className="admin-recent-meta"><strong>{item.title}</strong><span>{labelType(item.content_type)} · updated {formatDate(item.updated_at)}</span></div><StatusPill status={item.status} /><button className="icon-button" aria-label={`Edit ${item.title}`} onClick={() => editItem(item)}><ArrowUpRight size={16} /></button></div>)}</div> : <div className="admin-empty"><PenLine size={22} /><h3>Your content starts here.</h3><p>Create a draft or publish a first item. Publicly published items become discoverable automatically.</p><button className="button button-primary" onClick={newItem}><Plus size={15} /> Create first item</button></div>}</section><section className="admin-panel quick-actions-panel"><div className="admin-panel-heading"><div><span className="section-kicker">QUICK ACTIONS</span><h2>Keep things moving</h2></div><Command size={19} /></div><button className="quick-action" onClick={newItem}><span className="quick-action-icon"><Plus size={17} /></span><span><strong>Write something new</strong><small>Create an article, link, project, or resource.</small></span><ArrowRight size={16} /></button><button className="quick-action" onClick={() => { setTab('media'); void loadMedia(); }}><span className="quick-action-icon"><Upload size={17} /></span><span><strong>Add a media asset</strong><small>Manage covers and permitted downloads.</small></span><ArrowRight size={16} /></button><Link className="quick-action" to="/" target="_blank"><span className="quick-action-icon"><Globe2 size={17} /></span><span><strong>Preview the public site</strong><small>See the visitor experience.</small></span><ArrowUpRight size={16} /></Link><div className="security-note"><ShieldCheck size={16} /><span>Publishing is controlled by your account permissions. Drafts are not shown to anonymous visitors.</span></div></section></div></>}
+      {tab === 'calendar' && canManage && <CalendarPanel items={items} onEdit={editItem} />}
       {tab === 'content' && <section className="admin-panel content-management-panel"><div className="admin-panel-heading"><div><span className="section-kicker">CONTENT MANAGER</span><h2>Everything in the archive</h2><p>{items.length} items returned by the API</p></div><button className="button button-primary" onClick={newItem}><Plus size={15} /> New item</button></div><div className="content-table-wrap"><table className="content-table"><thead><tr><th>Title</th><th>Type</th><th>Status</th><th>Visibility</th><th>Updated</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>{items.map(item => <tr key={item.id}><td><div className="table-title"><span className="table-thumb"><FileText size={16} /></span><span><strong>{item.title}</strong><small>/{item.slug}</small></span></div></td><td>{labelType(item.content_type)}</td><td><StatusPill status={item.status} /></td><td><span className="visibility-label">{item.visibility}</span></td><td>{formatDate(item.updated_at)}</td><td><div className="table-actions"><button className="icon-button" onClick={() => editItem(item)} aria-label={`Edit ${item.title}`}><PenLine size={15} /></button><button className="icon-button danger-icon" onClick={() => void removeItem(item)} aria-label={`Delete ${item.title}`}><Trash2 size={15} /></button></div></td></tr>)}</tbody></table>{!items.length && <div className="table-empty"><FolderOpen size={22} /><p>No items have been added yet.</p><button className="button button-outline" onClick={newItem}><Plus size={15} /> Create your first item</button></div>}</div></section>}
       {tab === 'editor' && <section className="admin-editor-layout"><form id="admin-content-editor-form" className="admin-panel editor-panel" onSubmit={saveItem}><div className="admin-panel-heading"><div><span className="section-kicker">{editId ? 'EDIT AN ENTRY' : 'NEW ENTRY'}</span><h2>{editId ? 'Shape this content.' : 'What would you like to share?'}</h2><p>Save a draft while you work, or publish to make it discoverable.</p></div><span className="editor-badge"><PenLine size={15} /> Editor</span></div><label>Title<input required value={form.title} onChange={e => setField('title', e.target.value)} placeholder="Give it a clear title" /></label><div className="form-two-col"><label>Content type<select value={form.content_type} onChange={e => setField('content_type', e.target.value as ContentType)}>{(['article', 'note', 'link', 'project', 'video', 'book', 'resource', 'file', 'gallery', 'podcast'] as ContentType[]).map(type => <option key={type} value={type}>{labelType(type)}</option>)}</select></label><label>URL slug<input value={form.slug} onChange={e => setField('slug', e.target.value)} placeholder="Generated from title if empty" /></label></div><label>Short summary<textarea rows={2} value={form.summary} onChange={e => setField('summary', e.target.value)} placeholder="A useful one- or two-sentence introduction" /></label><div className="form-two-col"><label>Category<select value={form.category_id} onChange={e => setField('category_id', e.target.value)}><option value="">Uncategorized</option>{categories.map(category => <option value={category.id} key={category.id}>{category.name}</option>)}</select></label><label>Tags<select multiple value={form.tag_ids.map(String)} onChange={e => setField('tag_ids', Array.from(e.target.selectedOptions, option => Number(option.value)))} aria-label="Select content tags">{tags.map(tag => <option value={tag.id} key={tag.id}>{tag.name}</option>)}</select><small>Use Ctrl (Windows) or Command (Mac) to select multiple tags.</small></label></div><label>Body / description
     <div className="editor-toolbar" role="toolbar" aria-label="Content formatting">
@@ -1286,13 +1290,58 @@ function ContactInboxPanel({ onMessage }: { onMessage: (message: string) => void
   return <section className="admin-panel"><div className="admin-panel-heading"><div><span className="section-kicker">PRIVATE CONTACT MESSAGES</span><h2>{showArchived ? 'Archived messages' : 'Creator inbox'}</h2><p>Contact messages are only available to signed-in staff.</p></div><button className="button button-outline button-small" onClick={() => setShowArchived(value => !value)}>{showArchived ? 'Back to inbox' : 'View archive'}</button></div>{loading ? <div className="admin-empty">Loading inbox…</div> : rows.length ? <div className="admin-inbox-list">{rows.map(row => <article className={`inbox-row ${row.reviewed ? 'is-reviewed' : ''}`} key={row.id}><div><strong>{row.name}</strong><a href={`mailto:${row.email}`}>{row.email}</a><time>{formatDate(row.created_at)}</time><p>{row.message}</p></div><div className="inbox-row-actions"><button className="button button-outline button-small" onClick={() => void mark(row)}>{row.reviewed ? 'Mark unread' : 'Mark reviewed'}</button><button className="button button-outline button-small" onClick={() => void archive(row)}>{row.archived ? 'Restore' : 'Archive'}</button><button className="button button-outline button-small inbox-delete-button" onClick={() => void remove(row)}>Delete</button></div></article>)}</div> : <div className="admin-empty"><Mail size={22} /><h3>{showArchived ? 'No archived messages.' : 'No messages yet.'}</h3><p>{showArchived ? 'Messages you archive appear here until deleted.' : 'Messages from the public Contact page appear here.'}</p></div>}</section>;
 }
 
+function CalendarPanel({ items, onEdit }: { items: ContentItem[]; onEdit: (item: ContentItem) => void }) {
+  const now = new Date();
+  const [month, setMonth] = useState({ year: now.getFullYear(), month: now.getMonth() });
+  const shift = (delta: number) => setMonth(previous => { const date = new Date(previous.year, previous.month + delta, 1); return { year: date.getFullYear(), month: date.getMonth() }; });
+  const first = new Date(month.year, month.month, 1);
+  const daysInMonth = new Date(month.year, month.month + 1, 0).getDate();
+  const startOffset = (first.getDay() + 6) % 7;
+  const byDay = new Map<string, ContentItem[]>();
+  for (const item of items) {
+    const stamp = item.scheduled_for || item.published_at || item.created_at;
+    const day = stamp ? String(stamp).slice(0, 10) : '';
+    if (!day) continue;
+    const list = byDay.get(day) ?? [];
+    list.push(item);
+    byDay.set(day, list);
+  }
+  const cells: (number | null)[] = Array.from<number | null, number | null>({ length: startOffset }, () => null).concat(Array.from({ length: daysInMonth }, (_, index) => index + 1));
+  while (cells.length % 7 !== 0) cells.push(null);
+  const monthName = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' }).format(first);
+  const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const scheduled = items.filter(item => item.status === 'scheduled').length;
+  return <section className="admin-panel calendar-panel">
+    <div className="admin-panel-heading">
+      <div><span className="section-kicker">PUBLISHING PLAN</span><h2>{monthName}</h2><p>{items.length} entries in the archive{scheduled > 0 ? ` · ${scheduled} scheduled to publish` : ''}. Click an entry to edit it.</p></div>
+      <div className="calendar-controls">
+        <button className="icon-button" aria-label="Previous month" onClick={() => shift(-1)}><ChevronLeft size={16} /></button>
+        <button className="button button-outline button-small" onClick={() => setMonth({ year: now.getFullYear(), month: now.getMonth() })}>Today</button>
+        <button className="icon-button" aria-label="Next month" onClick={() => shift(1)}><ChevronRight size={16} /></button>
+      </div>
+    </div>
+    <div className="calendar-grid">
+      {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => <span key={day} className="calendar-weekday">{day}</span>)}
+      {cells.map((day, index) => {
+        const key = day ? `${month.year}-${String(month.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` : '';
+        const dayItems = day ? byDay.get(key) ?? [] : [];
+        return <div key={key || `blank-${index}`} className={`calendar-cell ${day ? '' : 'calendar-blank'} ${key === todayKey ? 'calendar-today' : ''}`}>
+          {day && <span className="calendar-day">{day}</span>}
+          {dayItems.slice(0, 3).map(item => <button type="button" key={item.id} className={`calendar-chip status-${item.status}`} onClick={() => onEdit(item)} title={`${item.title} (${item.status})`}><span />{item.title}</button>)}
+          {dayItems.length > 3 && <span className="calendar-more">+{dayItems.length - 3} more</span>}
+        </div>;
+      })}
+    </div>
+  </section>;
+}
+
 function AnalyticsPanel({ onMessage }: { onMessage: (message: string) => void }) {
   const [data, setData] = useState<AnalyticsSummary | null>(null);
   const [error, setError] = useState('');
   async function reload() { setError(''); try { setData(await api.adminAnalytics()); } catch (e) { const message = e instanceof Error ? e.message : 'Analytics could not load.'; setError(message); onMessage(message); } }
   useEffect(() => { void reload(); }, []);
   useAdminHeaderRefresh('analytics', () => { void reload(); });
-  return <section className="admin-panel"><div className="admin-panel-heading"><div><span className="section-kicker">REAL EVENTS ONLY / LAST 30 DAYS</span><h2>Audience analytics</h2><p>Counts come from actual page and outbound events recorded by the API.</p></div><BarChart3 size={19} /></div>{error && <p className="error-message">{error}</p>}{data && <><div className="admin-stat-grid"><AdminStat icon={<BarChart3 size={18} />} label="Page views" value={data.page_views} hint="Recorded events" /><AdminStat icon={<ExternalLink size={18} />} label="Outbound clicks" value={data.outbound_clicks} hint="Source links opened" /><AdminStat icon={<Search size={18} />} label="Searches" value={data.searches} hint="Search activity" /><AdminStat icon={<Heart size={18} />} label="Daily visitors" value={data.unique_daily_visitors_approx} hint="Approximate, privacy-salted" /></div><div className="admin-inbox-list">{data.popular_paths.map(row => <div className="analytics-path-row" key={row.path}><code>{row.path}</code><strong>{row.views} views</strong></div>)}</div></>}</section>;
+  return <section className="admin-panel"><div className="admin-panel-heading"><div><span className="section-kicker">REAL EVENTS ONLY / LAST 30 DAYS</span><h2>Audience analytics</h2><p>Counts come from actual page and outbound events recorded by the API.</p></div><BarChart3 size={19} /></div>{error && <p className="error-message">{error}</p>}{data && <><div className="admin-stat-grid"><AdminStat icon={<BarChart3 size={18} />} label="Page views" value={data.page_views} hint="Recorded events" /><AdminStat icon={<ExternalLink size={18} />} label="Outbound clicks" value={data.outbound_clicks} hint="Source links opened" /><AdminStat icon={<Search size={18} />} label="Searches" value={data.searches} hint="Search activity" /><AdminStat icon={<Heart size={18} />} label="Daily visitors" value={data.unique_daily_visitors_approx} hint="Approximate, privacy-salted" /></div><div className="admin-inbox-list">{data.popular_paths.map(row => <div className="analytics-path-row" key={row.path}><code>{row.path}</code><strong>{row.views} views</strong></div>)}</div>{(data.top_viewed ?? []).length > 0 && <div className="analytics-subsection"><span className="section-kicker">MOST VIEWED ENTRIES</span><div className="admin-inbox-list">{data.top_viewed.map(row => <Link className="analytics-path-row analytics-entry-row" key={row.slug} to={`/content/${row.slug}`}><strong>{row.title}</strong><span>{row.view_count} {row.view_count === 1 ? 'view' : 'views'}</span></Link>)}</div></div>}</>}</section>;
 }
 
 function SuggestionModerationPanel({ onMessage }: { onMessage: (message: string) => void }) {

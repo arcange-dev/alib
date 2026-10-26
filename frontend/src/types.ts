@@ -10,6 +10,7 @@ export interface ContentItem {
   source_url: string; cover_image_url: string; category: Category | null; tags: Tag[];
   visibility: Visibility; status: ContentStatus; featured: boolean; allow_download: boolean; metadata?: Record<string, unknown>;
   published_at: string | null; scheduled_for: string | null; created_at: string; updated_at: string; collection_slugs: string[];
+  view_count: number; read_minutes: number;
 }
 export interface CreatorProfile {
   display_name: string; headline: string; biography: string; avatar_url: string; location: string;

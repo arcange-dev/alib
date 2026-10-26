@@ -104,6 +104,7 @@ class ContentItem(TimestampedModel):
     visibility = models.CharField(max_length=12, choices=VISIBILITY, default='public', db_index=True)
     status = models.CharField(max_length=12, choices=STATUSES, default='draft', db_index=True)
     featured = models.BooleanField(default=False, db_index=True)
+    view_count = models.PositiveIntegerField(default=0, db_index=True)
     allow_download = models.BooleanField(default=False)
     published_at = models.DateTimeField(null=True, blank=True, db_index=True)
     scheduled_for = models.DateTimeField(null=True, blank=True, db_index=True)

@@ -21,18 +21,23 @@ class ContentItemSerializer(serializers.ModelSerializer):
     tags = TagSerializer(many=True, read_only=True)
     tag_ids = serializers.PrimaryKeyRelatedField(source='tags', queryset=Tag.objects.all(), many=True, write_only=True, required=False)
     collection_slugs = serializers.SerializerMethodField()
+    read_minutes = serializers.SerializerMethodField()
 
     class Meta:
         model = ContentItem
         fields = [
             'id', 'title', 'slug', 'summary', 'body', 'content_type', 'source_url', 'cover_image_url',
             'category', 'category_id', 'tags', 'tag_ids', 'collection_slugs', 'visibility', 'status',
-            'featured', 'allow_download', 'published_at', 'scheduled_for', 'metadata', 'created_at', 'updated_at',
+            'featured', 'view_count', 'read_minutes', 'allow_download', 'published_at', 'scheduled_for', 'metadata', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'published_at', 'created_at', 'updated_at', 'collection_slugs']
 
     def get_collection_slugs(self, obj):
         return list(obj.collections.filter(visibility='public').values_list('slug', flat=True))
+
+    def get_read_minutes(self, obj):
+        words = len((obj.body or '').split())
+        return max(1, -(-words // 200)) if words else 0
 
     def create(self, validated_data):
         tags = validated_data.pop('tags', [])

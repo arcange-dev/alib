@@ -68,7 +68,7 @@ describe('Creator Studio navigation', () => {
     const headerNav = document.querySelector('.admin-header-nav');
     expect(headerNav).not.toBeNull();
     expect(within(headerNav as HTMLElement).getAllByRole('button').map(button => button.textContent)).toEqual(
-      ['Collections', 'Creator profile', 'Site settings', 'Contact inbox', 'Analytics', 'Suggestions', 'Comments', 'Team access', 'Audit history', 'Newsletter']);
+      ['Collections', 'Calendar', 'Creator profile', 'Site settings', 'Contact inbox', 'Analytics', 'Suggestions', 'Comments', 'Team access', 'Audit history', 'Newsletter']);
     fireEvent.click(sidebarNav.getByRole('button', { name: 'Collections' }));
     await waitFor(() => expect(screen.getByTestId('admin-section-title').textContent).toBe('Collections'));
     expect(document.querySelector('.admin-header-description')?.textContent).toContain('chosen order');

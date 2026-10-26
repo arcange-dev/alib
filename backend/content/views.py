@@ -11,7 +11,7 @@ from django.contrib.auth.tokens import default_token_generator
 from django.core import signing
 from django.core.mail import send_mail
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Max, OuterRef, Subquery
+from django.db.models import Count, F, Max, OuterRef, Subquery
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -199,6 +199,9 @@ class ContentItemViewSet(viewsets.ModelViewSet):
         item = self.get_queryset().filter(slug=slug).first()
         if not item:
             return Response({'detail': 'Content not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if not can_manage_content(request.user):
+            ContentItem.objects.filter(pk=item.pk).update(view_count=F('view_count') + 1)
+            item.refresh_from_db(fields=['view_count'])
         return Response(self.get_serializer(item).data)
 
 class CategoryViewSet(viewsets.ModelViewSet):
@@ -875,7 +878,8 @@ class AdminAnalyticsAPIView(APIView):
         events = AnalyticsEvent.objects.filter(created_at__gte=since)
         popular = list(events.filter(event_type='page_view').values('path').annotate(views=Count('id')).order_by('-views')[:10])
         daily = list(events.filter(event_type='page_view').extra(select={'day': "DATE(created_at)"}).values('day').annotate(views=Count('id')).order_by('day'))
-        return Response({'period_days': 30, 'page_views': events.filter(event_type='page_view').count(), 'outbound_clicks': events.filter(event_type='outbound_click').count(), 'searches': events.filter(event_type='search').count(), 'unique_daily_visitors_approx': events.filter(event_type='page_view').values('visitor_hash', 'created_at__date').distinct().count(), 'popular_paths': popular, 'daily_page_views': daily})
+        top_viewed = list(ContentItem.objects.filter(status='published', visibility='public').order_by('-view_count')[:8].values('title', 'slug', 'content_type', 'view_count'))
+        return Response({'period_days': 30, 'page_views': events.filter(event_type='page_view').count(), 'outbound_clicks': events.filter(event_type='outbound_click').count(), 'searches': events.filter(event_type='search').count(), 'unique_daily_visitors_approx': events.filter(event_type='page_view').values('visitor_hash', 'created_at__date').distinct().count(), 'popular_paths': popular, 'daily_page_views': daily, 'top_viewed': top_viewed})
 
 
 class ContactInboxAPIView(APIView):
