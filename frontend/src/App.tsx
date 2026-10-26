@@ -25,8 +25,7 @@ function renderCopyright(settings: SiteSettings | null | undefined): string {
   const year = String(new Date().getFullYear());
   const owner = settings?.owner_name?.trim() || 'Mukamyi Izere Arcange';
   const template = settings?.copyright_text?.trim() || '© {year} {owner_name}. All rights reserved.';
-  const value = template.replace(/\{year\}/gi, year).replace(/\{owner_name\}/gi, owner);
-  return value.replace(/(©\s*)(?:19|20)\d{2}/, `$1${year}`);
+  return template.replace(/\{year\}/gi, year).replace(/\{owner_name\}/gi, owner);
 }
 
 function safeStorageGet(key: string): string | null {
@@ -1260,8 +1259,8 @@ function SiteSettingsPanel({ onMessage }: { onMessage: (message: string) => void
     onMessage('Website text field added. Save site settings to publish it.');
   }
   return <section className="admin-panel settings-panel"><div className="admin-panel-heading"><div><span className="section-kicker">SITE CONFIGURATION</span><h2>Brand, profile and homepage</h2><p>{loading ? 'Loading settings…' : 'These values are saved in the database.'}</p></div><Settings2 size={19} /></div><form id="site-settings-form" className="settings-form" onSubmit={save}><label>Site title<input required maxLength={140} value={settings.site_title} onChange={e => set('site_title', e.target.value)} /></label><label>SEO description<textarea rows={3} maxLength={300} value={settings.seo_description} onChange={e => set('seo_description', e.target.value)} /></label><div className="settings-image-grid"><ImageField label="Logo" value={settings.logo_url} onChange={url => set('logo_url', url)} help="Shown in the site header" /><ImageField label="Favicon" value={settings.favicon_url} onChange={url => set('favicon_url', url)} aspect={1} help="The little icon in the browser tab" /></div>
-    <div className="form-two-col"><label>Website owner<input required maxLength={160} value={settings.owner_name} onChange={e => set('owner_name', e.target.value)} /></label><label>Copyright template<input maxLength={240} value={settings.copyright_text} onChange={e => set('copyright_text', e.target.value)} placeholder="© {year} {owner_name}. All rights reserved." /></label></div>
-    <p className="settings-help-text">Use <code>{'{year}'}</code> for the current year and <code>{'{owner_name}'}</code> for the website owner. The public copyright automatically updates each year.</p>
+    <div className="form-two-col"><label>Website owner<input required maxLength={160} value={settings.owner_name} onChange={e => set('owner_name', e.target.value)} /></label><label>Copyright text<input maxLength={240} value={settings.copyright_text} onChange={e => set('copyright_text', e.target.value)} placeholder="© {year} {owner_name}. All rights reserved." /></label></div>
+    <p className="settings-help-text">The footer shows exactly the text you type here. Optionally use <code>{'{year}'}</code> for the current year and <code>{'{owner_name}'}</code> for the website owner.</p>
     <div className="form-two-col"><label>YouTube channel URL<input type="url" value={settings.youtube_url || ''} onChange={e => set('youtube_url', e.target.value)} placeholder="https://youtube.com/@… (optional)" /></label></div>
     <div className="site-copy-editor"><div><span className="section-kicker">PUBLIC WEBSITE WORDING</span><h3>Edit website text</h3><p>Edit the wording below using normal text fields. These settings control text in the homepage, navigation, About, Contact, Recommendations, and footer. Changes are published when you press Save site settings in the top header.</p></div>
       <div className="site-copy-fields">{Object.entries(settings.site_copy || {}).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => <label className="site-copy-field" key={key}><span>{key.split('.').map(part => part.replaceAll('_', ' ')).join(' / ')}</span>{/(heading|body|intro|description)/i.test(key) ? <textarea rows={2} aria-label={key} value={value} onChange={e => updateCopy(key, e.target.value)} /> : <input type="text" aria-label={key} value={value} onChange={e => updateCopy(key, e.target.value)} />}</label>)}</div>
