@@ -84,7 +84,8 @@ describe('Creator Studio navigation', () => {
     expect((await screen.findByLabelText('Website owner') as HTMLInputElement).value).toBe('Mukamyi Izere Arcange');
     expect((await screen.findByLabelText('Copyright template') as HTMLInputElement).value).toContain('{year}');
     expect(await screen.findByRole('button', { name: 'Refresh Site settings' })).toBeTruthy();
-    expect(await screen.findByRole('button', { name: 'Save site settings' })).toBeTruthy();
+    expect(await within(document.querySelector('.admin-topbar') as HTMLElement).findByRole('button', { name: 'Save site settings' })).toBeTruthy();
+    expect(await screen.findAllByRole('button', { name: 'Save site settings' })).toHaveLength(2);
   });
 });
 
