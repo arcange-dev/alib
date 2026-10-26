@@ -138,6 +138,6 @@ EMAIL_USE_TLS = env_bool('EMAIL_USE_TLS', True)
 EMAIL_USE_SSL = env_bool('EMAIL_USE_SSL', False)
 EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '10'))
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'webmaster@localhost')
-ALIB_SCHEDULER_TOKEN = os.environ.get('ALIB_SCHEDULER_TOKEN', '')
+ALIB_SCHEDULER_TOKEN = os.environ.get('ALIB_SCHEDULER_TOKEN', '').strip()
 ALIB_CONTACT_NOTIFICATION_EMAIL = os.environ.get('ALIB_CONTACT_NOTIFICATION_EMAIL', '').strip()
 
